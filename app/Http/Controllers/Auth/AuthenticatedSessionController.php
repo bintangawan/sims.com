@@ -18,7 +18,7 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(Request $request): Response
     {
-        return Inertia::render('Auth/Login', [
+        return Inertia::render('auth/login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => $request->session()->get('status'),
         ]);
@@ -27,25 +27,24 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
-    {
-        $request->authenticate();
+    public function store(LoginRequest $request): \Illuminate\Http\RedirectResponse
+{
+    $request->authenticate();
+    $request->session()->regenerate();
 
-        $request->session()->regenerate();
+    $user = $request->user(); // sama dengan Auth::user()
 
-        // Redirect based on user role
-        $user = auth()->user();
-        
-        if ($user->hasRole('admin')) {
-            return redirect()->intended(route('admin.dashboard'));
-        } elseif ($user->hasRole('guru')) {
-            return redirect()->intended(route('guru.dashboard'));
-        } elseif ($user->hasRole('siswa')) {
-            return redirect()->intended(route('siswa.dashboard'));
-        }
-
-        return redirect()->intended(route('dashboard'));
+    if (!$user) {
+        return to_route('login'); // fallback kalau belum ter-auth
     }
+
+    if ($user->hasRole('admin'))  return to_route('admin.dashboard');
+    if ($user->hasRole('guru'))   return to_route('guru.dashboard');
+    if ($user->hasRole('siswa'))  return to_route('siswa.dashboard');
+
+    return to_route('dashboard');
+}
+
 
     /**
      * Destroy an authenticated session.
