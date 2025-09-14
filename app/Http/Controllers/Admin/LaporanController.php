@@ -29,7 +29,7 @@ class LaporanController extends Controller
             'attendance_rate' => $this->getAttendanceRate($activeTerm?->id),
         ];
 
-        return Inertia::render('Admin/Laporan', [
+        return Inertia::render('Admin/Laporan/Index', [
             'stats' => $stats,
             'activeTerm' => $activeTerm,
         ]);
@@ -38,10 +38,11 @@ class LaporanController extends Controller
     public function attendance(Request $request)
     {
         $termId = $request->term_id ?? Term::where('aktif', true)->first()?->id;
-        $startDate = $request->start_date ? Carbon::parse($request->start_date) : Carbon::now()->startOfMonth();
-        $endDate = $request->end_date ? Carbon::parse($request->end_date) : Carbon::now()->endOfMonth();
+        $sectionId = $request->section_id;
+        $startDate = $request->start_date;
+        $endDate = $request->end_date;
 
-        $attendanceData = AttendanceDetail::select(
+        $query = AttendanceDetail::select(
                 'attendance_details.status',
                 DB::raw('COUNT(*) as count'),
                 'users.name as student_name',
@@ -51,20 +52,29 @@ class LaporanController extends Controller
             ->join('sections', 'attendances.section_id', '=', 'sections.id')
             ->join('subjects', 'sections.subject_id', '=', 'subjects.id')
             ->join('users', 'attendance_details.user_id', '=', 'users.id')
-            ->where('sections.term_id', $termId)
-            ->whereBetween('attendances.tanggal', [$startDate, $endDate])
-            ->when($request->section_id, function($q, $sectionId) {
-                return $q->where('sections.id', $sectionId);
-            })
-            ->groupBy('attendance_details.user_id', 'sections.id', 'attendance_details.status')
+            ->where('sections.term_id', $termId);
+
+        if ($sectionId) {
+            $query->where('sections.id', $sectionId);
+        }
+
+        if ($startDate) {
+            $query->where('attendances.tanggal', '>=', $startDate);
+        }
+
+        if ($endDate) {
+            $query->where('attendances.tanggal', '<=', $endDate);
+        }
+
+        $attendanceData = $query
+            ->groupBy('attendance_details.status', 'users.name', 'subjects.nama')
             ->orderBy('users.name')
-            ->get();
+            ->paginate(15);
 
         $sections = Section::with('subject')
             ->where('term_id', $termId)
-            ->orderBy('id')
             ->get();
-
+        
         $terms = Term::orderBy('tahun', 'desc')->get();
 
         return Inertia::render('Admin/Laporan/Attendance', [
@@ -78,45 +88,48 @@ class LaporanController extends Controller
     public function grades(Request $request)
     {
         $termId = $request->term_id ?? Term::where('aktif', true)->first()?->id;
-        
-        $gradesData = Grade::select(
+        $sectionId = $request->section_id;
+        $minScore = $request->min_score;
+        $maxScore = $request->max_score;
+
+        $query = Grade::select(
                 'users.name as student_name',
                 'subjects.nama as subject_name',
-                'assignments.judul as assignment_title',
-                'grades.score',
+                'grades.komponen as assignment_title',
+                'grades.skor as score',
                 'grades.created_at'
             )
-            ->join('assignments', 'grades.assignment_id', '=', 'assignments.id')
-            ->join('sections', 'assignments.section_id', '=', 'sections.id')
+            ->join('sections', 'grades.section_id', '=', 'sections.id')
             ->join('subjects', 'sections.subject_id', '=', 'subjects.id')
             ->join('users', 'grades.user_id', '=', 'users.id')
+            ->where('sections.term_id', $termId);
+
+        if ($sectionId) {
+            $query->where('sections.id', $sectionId);
+        }
+
+        if ($minScore !== null) {
+            $query->where('grades.skor', '>=', $minScore);
+        }
+
+        if ($maxScore !== null) {
+            $query->where('grades.skor', '<=', $maxScore);
+        }
+
+        $gradesData = $query
+            ->orderBy('grades.created_at', 'desc')
+            ->paginate(15);
+
+        $gradeStats = Grade::join('sections', 'grades.section_id', '=', 'sections.id')
             ->where('sections.term_id', $termId)
-            ->when($request->section_id, function($q, $sectionId) {
-                return $q->where('sections.id', $sectionId);
-            })
-            ->when($request->min_score, function($q, $minScore) {
-                return $q->where('grades.score', '>=', $minScore);
-            })
-            ->when($request->max_score, function($q, $maxScore) {
-                return $q->where('grades.score', '<=', $maxScore);
-            })
-            ->orderBy('subjects.nama')
-            ->orderBy('users.name')
-            ->paginate(20);
+            ->selectRaw('AVG(grades.skor) as avg_score, MIN(grades.skor) as min_score, MAX(grades.skor) as max_score')
+            ->first();
 
         $sections = Section::with('subject')
             ->where('term_id', $termId)
-            ->orderBy('id')
             ->get();
-
+        
         $terms = Term::orderBy('tahun', 'desc')->get();
-
-        // Grade statistics
-        $gradeStats = Grade::join('assignments', 'grades.assignment_id', '=', 'assignments.id')
-            ->join('sections', 'assignments.section_id', '=', 'sections.id')
-            ->where('sections.term_id', $termId)
-            ->selectRaw('AVG(score) as avg_score, MIN(score) as min_score, MAX(score) as max_score')
-            ->first();
 
         return Inertia::render('Admin/Laporan/Grades', [
             'gradesData' => $gradesData,
@@ -137,17 +150,18 @@ class LaporanController extends Controller
                 'users.name',
                 'users.email',
                 DB::raw('COUNT(sections.id) as total_sections'),
-                DB::raw('SUM(COALESCE(sections.kapasitas, 0)) as total_students'),
+                DB::raw('COUNT(DISTINCT section_students.user_id) as total_students'),
                 DB::raw('COUNT(DISTINCT subjects.id) as total_subjects')
             )
             ->leftJoin('sections', function($join) use ($termId) {
                 $join->on('users.id', '=', 'sections.guru_id')
-                     ->where('sections.term_id', $termId);
+                    ->where('sections.term_id', $termId);
             })
             ->leftJoin('subjects', 'sections.subject_id', '=', 'subjects.id')
+            ->leftJoin('section_students', 'sections.id', '=', 'section_students.section_id')
             ->groupBy('users.id', 'users.name', 'users.email')
             ->orderBy('total_sections', 'desc')
-            ->get();
+            ->paginate(10);
 
         $terms = Term::orderBy('tahun', 'desc')->get();
 

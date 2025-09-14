@@ -113,7 +113,7 @@ export default function Create({ roles, waliKelas = [] }: Props) {
         <AppLayout>
             <Head title="Tambah User" />
 
-            <div className="space-y-6">
+            <div className="space-y-6 p-6">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" asChild>
                         <Link href="/admin/users">

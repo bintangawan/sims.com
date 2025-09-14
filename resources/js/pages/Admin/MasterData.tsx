@@ -212,7 +212,7 @@ export default function MasterData({ terms, subjects, sections }: Props) {
         <AppLayout>
             <Head title="Master Data" />
 
-            <div className="space-y-6">
+            <div className="space-y-6 p-6">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Master Data</h1>
                     <p className="text-muted-foreground">Kelola data master sistem (Term, Mata Pelajaran, Kelas)</p>

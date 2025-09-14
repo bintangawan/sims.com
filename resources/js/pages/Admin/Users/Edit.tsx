@@ -76,7 +76,7 @@ export default function Edit({ user, roles }: Props) {
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        
+
         put(route('admin.users.update', user.id), {
             onSuccess: () => {
                 toast.success('User berhasil diupdate');
@@ -90,7 +90,7 @@ export default function Edit({ user, roles }: Props) {
     // Reset form fields when role changes
     useEffect(() => {
         if (data.role === 'siswa') {
-            setData(prev => ({
+            setData((prev) => ({
                 ...prev,
                 nidn: '',
                 nuptk: '',
@@ -98,7 +98,7 @@ export default function Edit({ user, roles }: Props) {
                 telepon: '',
             }));
         } else if (data.role === 'guru') {
-            setData(prev => ({
+            setData((prev) => ({
                 ...prev,
                 nis: '',
                 angkatan: undefined,
@@ -106,7 +106,7 @@ export default function Edit({ user, roles }: Props) {
                 wali_kelas_id: undefined,
             }));
         } else {
-            setData(prev => ({
+            setData((prev) => ({
                 ...prev,
                 nis: '',
                 angkatan: undefined,
@@ -124,7 +124,7 @@ export default function Edit({ user, roles }: Props) {
         <AppLayout>
             <Head title={`Edit User - ${user.name}`} />
 
-            <div className="space-y-6">
+            <div className="space-y-6 p-6">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" asChild>
                         <Link href="/admin/users">
@@ -145,7 +145,7 @@ export default function Edit({ user, roles }: Props) {
                             <CardDescription>Data utama pengguna</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label htmlFor="name">Nama Lengkap</Label>
                                     <Input
@@ -195,9 +195,7 @@ export default function Edit({ user, roles }: Props) {
                                         placeholder="Konfirmasi password baru"
                                         className={errors.password_confirmation ? 'border-red-500' : ''}
                                     />
-                                    {errors.password_confirmation && (
-                                        <p className="text-sm text-red-500">{errors.password_confirmation}</p>
-                                    )}
+                                    {errors.password_confirmation && <p className="text-sm text-red-500">{errors.password_confirmation}</p>}
                                 </div>
 
                                 <div className="space-y-2">
@@ -228,7 +226,7 @@ export default function Edit({ user, roles }: Props) {
                                 <CardDescription>Data khusus untuk siswa</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
                                         <Label htmlFor="nis">NIS</Label>
                                         <Input
@@ -282,7 +280,7 @@ export default function Edit({ user, roles }: Props) {
                                 <CardDescription>Data khusus untuk guru</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
                                         <Label htmlFor="nidn">NIDN</Label>
                                         <Input
@@ -319,9 +317,7 @@ export default function Edit({ user, roles }: Props) {
                                             placeholder="Contoh: Matematika, Fisika"
                                             className={errors.mapel_keahlian ? 'border-red-500' : ''}
                                         />
-                                        {errors.mapel_keahlian && (
-                                            <p className="text-sm text-red-500">{errors.mapel_keahlian}</p>
-                                        )}
+                                        {errors.mapel_keahlian && <p className="text-sm text-red-500">{errors.mapel_keahlian}</p>}
                                     </div>
 
                                     <div className="space-y-2">
