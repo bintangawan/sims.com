@@ -1,275 +1,283 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, MessageCircle, X, Minimize2, Maximize2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { MessageCircle, Send, Smile, Sparkles, Trash2, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+
+type Role = 'admin' | 'guru' | 'siswa' | null;
 
 interface Message {
-  id: string;
-  content: string;
-  sender: 'user' | 'bot';
-  timestamp: Date;
-  typing?: boolean;
+    id: string;
+    content: string;
+    sender: 'user' | 'bot';
+    timestamp: Date;
 }
 
 interface ChatWidgetProps {
-  isAuthenticated?: boolean;
-  userRole?: 'admin' | 'guru' | 'siswa' | null;
-  className?: string;
+    isAuthenticated?: boolean;
+    userRole?: Role;
+    className?: string;
 }
 
-const ChatWidget: React.FC<ChatWidgetProps> = ({ 
-  isAuthenticated = false, 
-  userRole = null,
-  className = '' 
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: isAuthenticated 
-        ? `Halo! Saya asisten virtual SIMS. Ada yang bisa saya bantu hari ini?`
-        : 'Halo! Selamat datang di SIMS. Saya siap membantu Anda. Silakan login untuk pengalaman yang lebih personal.',
-      sender: 'bot',
-      timestamp: new Date()
-    }
-  ]);
-  const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+const SUGGESTIONS = ['Saya ingin membuat akun siswa', 'Bagaimana cara reset password?', 'Cara melihat nilai & absensi'];
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+const ChatWidget: React.FC<ChatWidgetProps> = ({ isAuthenticated = false, userRole = null, className = '' }) => {
+    const initialBotText = isAuthenticated
+        ? 'Halo! Saya asisten virtual SIMS 🤖. Ada yang bisa saya bantu?'
+        : 'Halo! Selamat datang di SIMS. Silakan login untuk pengalaman yang lebih personal. Saya siap membantu!';
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const initialMessages: Message[] = [
+        {
+            id: 'greet-1',
+            content: initialBotText,
+            sender: 'bot',
+            timestamp: new Date(),
+        },
+    ];
 
-  useEffect(() => {
-    if (isOpen && !isMinimized) {
-      inputRef.current?.focus();
-    }
-  }, [isOpen, isMinimized]);
+    const [isOpen, setIsOpen] = useState(false);
+    const [messages, setMessages] = useState<Message[]>(initialMessages);
+    const [inputValue, setInputValue] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
-  const sendMessage = async () => {
-    if (!inputValue.trim()) return;
+    // Scroll ke bawah saat ada pesan baru
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: inputValue,
-      sender: 'user',
-      timestamp: new Date()
+    // Fokus input ketika terbuka
+    useEffect(() => {
+        if (isOpen) inputRef.current?.focus();
+    }, [isOpen]);
+
+    // ESC untuk tutup
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isOpen) setIsOpen(false);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [isOpen]);
+
+    const resetHistory = () => {
+        setMessages([
+            {
+                id: 'greet-reset',
+                content: initialBotText,
+                sender: 'bot',
+                timestamp: new Date(),
+            },
+        ]);
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setIsTyping(true);
+    const sendText = async (text: string) => {
+        if (!text.trim()) return;
 
-    try {
-      const endpoint = isAuthenticated ? '/api/chat' : '/api/chat/public';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-        },
-        body: JSON.stringify({
-          message: inputValue,
-          context: {
-            role: userRole,
-            authenticated: isAuthenticated
-          }
-        })
-      });
-
-      const data = await response.json();
-      
-      setTimeout(() => {
-        const botMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: data.response || 'Maaf, terjadi kesalahan. Silakan coba lagi.',
-          sender: 'bot',
-          timestamp: new Date()
+        const userMsg: Message = {
+            id: `u-${Date.now()}`,
+            content: text.trim(),
+            sender: 'user',
+            timestamp: new Date(),
         };
-        setMessages(prev => [...prev, botMessage]);
-        setIsTyping(false);
-      }, 1000);
-    } catch (error) {
-      setTimeout(() => {
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: 'Maaf, terjadi kesalahan koneksi. Silakan coba lagi.',
-          sender: 'bot',
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        setIsTyping(false);
-      }, 1000);
-    }
-  };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+        setMessages((prev) => [...prev, userMsg]);
+        setInputValue('');
+        setIsTyping(true);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('id-ID', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
+        try {
+            const endpoint = isAuthenticated ? '/api/chat' : '/api/chat/public';
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    message: userMsg.content,
+                    context: { role: userRole, authenticated: isAuthenticated },
+                }),
+            });
 
-  return (
-    <div className={`fixed bottom-6 right-6 z-50 ${className}`}>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            transition={{ duration: 0.2 }}
-            className={`mb-4 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden ${
-              isMinimized ? 'w-80 h-16' : 'w-96 h-[500px]'
-            } transition-all duration-300`}
-          >
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 text-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                    <MessageCircle size={16} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">SIMS Assistant</h3>
-                    <p className="text-xs text-blue-100">Online • Siap membantu</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setIsMinimized(!isMinimized)}
-                    className="p-1 hover:bg-white/20 rounded transition-colors"
-                  >
-                    {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
-                  </button>
-                  <button
-                    onClick={() => setIsOpen(false)}
-                    className="p-1 hover:bg-white/20 rounded transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
+            const data = await res.json();
 
-            {!isMinimized && (
-              <>
-                {/* Messages */}
-                <div className="flex-1 p-4 h-80 overflow-y-auto bg-gray-50">
-                  <div className="space-y-4">
-                    {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-[80%] p-3 rounded-2xl ${
-                            message.sender === 'user'
-                              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-                              : 'bg-white border border-gray-200 text-gray-800'
-                          }`}
-                        >
-                          <p className="text-sm leading-relaxed">{message.content}</p>
-                          <p className={`text-xs mt-1 ${
-                            message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                          }`}>
-                            {formatTime(message.timestamp)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {isTyping && (
-                      <div className="flex justify-start">
-                        <div className="bg-white border border-gray-200 p-3 rounded-2xl">
-                          <div className="flex space-x-1">
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div ref={messagesEndRef} />
-                </div>
+            setTimeout(() => {
+                const botMsg: Message = {
+                    id: `b-${Date.now()}`,
+                    content: data?.response || 'Maaf, terjadi kesalahan. Silakan coba lagi.',
+                    sender: 'bot',
+                    timestamp: new Date(),
+                };
+                setMessages((prev) => [...prev, botMsg]);
+                setIsTyping(false);
+            }, 600);
+        } catch {
+            setTimeout(() => {
+                const botMsg: Message = {
+                    id: `b-${Date.now()}`,
+                    content: 'Maaf, koneksi bermasalah. Coba lagi ya.',
+                    sender: 'bot',
+                    timestamp: new Date(),
+                };
+                setMessages((prev) => [...prev, botMsg]);
+                setIsTyping(false);
+            }, 600);
+        }
+    };
 
-                {/* Input */}
-                <div className="p-4 bg-white border-t border-gray-200">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder="Ketik pesan Anda..."
-                      className="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      disabled={isTyping}
-                    />
-                    <button
-                      onClick={sendMessage}
-                      disabled={!inputValue.trim() || isTyping}
-                      className="p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
+    const onSend = () => sendText(inputValue);
+    const onKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onSend();
+        }
+    };
+
+    const formatTime = (d: Date) => d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+    return (
+        <div className={`fixed right-6 bottom-6 z-50 ${className}`}>
+            {/* Widget */}
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                        transition={{ duration: 0.18 }}
+                        className="mb-3 w-[360px] max-w-[92vw] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
                     >
-                      <Send size={16} />
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+                        {/* Header mirip Hostinger */}
+                        <div className="flex items-center justify-between px-4 py-3">
+                            <div className="flex items-center gap-2">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 text-white">
+                                    <Sparkles size={16} />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-semibold">Tanya SIMS</div>
+                                    <div className="text-xs text-muted-foreground">Online • Siap membantu</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button className="rounded p-1.5 text-gray-600 hover:bg-gray-100" title="Reaksi">
+                                    <Smile size={16} />
+                                </button>
+                                <button className="rounded p-1.5 text-gray-600 hover:bg-gray-100" title="Hapus riwayat" onClick={resetHistory}>
+                                    <Trash2 size={16} />
+                                </button>
+                                <button className="rounded p-1.5 text-gray-600 hover:bg-gray-100" title="Tutup" onClick={() => setIsOpen(false)}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </div>
 
-      {/* Toggle Button */}
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group"
-      >
-        <AnimatePresence mode="wait">
-          {isOpen ? (
-            <motion.div
-              key="close"
-              initial={{ rotate: -90, opacity: 0 }}
-              animate={{ rotate: 0, opacity: 1 }}
-              exit={{ rotate: 90, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+                        {/* Body */}
+                        <div className="px-4 pb-4">
+                            {/* Kartu sapaan seperti bubble */}
+                            <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-blue-600 to-purple-600 text-white">
+                                        <Sparkles size={14} />
+                                    </div>
+                                    <p className="text-sm leading-relaxed text-gray-800">{initialBotText}</p>
+                                </div>
+                            </div>
+
+                            {/* FAQ pills */}
+                            <div className="mb-2 text-sm font-medium">Pertanyaan yang sering diajukan:</div>
+                            <div className="mb-4 space-y-2">
+                                {SUGGESTIONS.map((s) => (
+                                    <button
+                                        key={s}
+                                        onClick={() => sendText(s)}
+                                        className="w-full rounded-full border border-gray-200 px-4 py-2 text-left text-sm hover:bg-gray-50"
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* List messages */}
+                            <div className="mb-3 max-h-64 overflow-y-auto">
+                                <div className="space-y-3">
+                                    {messages.map((m) => (
+                                        <div key={m.id} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                            <div
+                                                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                                                    m.sender === 'user'
+                                                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                                                        : 'border border-gray-200 bg-white text-gray-800'
+                                                }`}
+                                            >
+                                                <div>{m.content}</div>
+                                                <div className={`mt-1 text-[10px] ${m.sender === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
+                                                    {formatTime(m.timestamp)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {isTyping && (
+                                        <div className="flex justify-start">
+                                            <div className="rounded-2xl border border-gray-200 bg-white px-3 py-2">
+                                                <div className="flex gap-1">
+                                                    <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400" />
+                                                    <span
+                                                        className="h-2 w-2 animate-bounce rounded-full bg-gray-400"
+                                                        style={{ animationDelay: '0.1s' }}
+                                                    />
+                                                    <span
+                                                        className="h-2 w-2 animate-bounce rounded-full bg-gray-400"
+                                                        style={{ animationDelay: '0.2s' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div ref={messagesEndRef} />
+                            </div>
+
+                            {/* input + send */}
+                            <div className="relative">
+                                <input
+                                    ref={inputRef}
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
+                                    onKeyDown={onKeyPress}
+                                    placeholder="Ketik pertanyaan Anda..."
+                                    className="w-full rounded-xl border border-gray-300 py-2 pr-10 pl-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                                    disabled={isTyping}
+                                />
+                                <button
+                                    onClick={onSend}
+                                    disabled={!inputValue.trim() || isTyping}
+                                    className="absolute top-1.5 right-1 inline-flex h-7 w-7 items-center justify-center rounded-md bg-gray-900 text-white disabled:opacity-40"
+                                    title="Kirim"
+                                >
+                                    <Send size={14} />
+                                </button>
+                            </div>
+
+                            {/* disclaimer */}
+                            <div className="mt-2 text-center text-[11px] text-gray-500">Informasi dari AI mungkin tidak akurat</div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* FAB: {Logo} Tanya SIMS — selalu sama, klik lagi untuk menutup */}
+            <button
+                onClick={() => setIsOpen((v) => !v)}
+                className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-3 text-white shadow-lg transition-shadow hover:shadow-xl"
+                aria-label={isOpen ? 'Tutup Tanya SIMS' : 'Buka Tanya SIMS'}
             >
-              <X size={24} />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="open"
-              initial={{ rotate: 90, opacity: 0 }}
-              animate={{ rotate: 0, opacity: 1 }}
-              exit={{ rotate: -90, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="relative"
-            >
-              <MessageCircle size={24} />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.button>
-    </div>
-  );
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20">
+                    <MessageCircle size={14} />
+                </span>
+                <span className="text-sm font-semibold">Tanya SIMS</span>
+            </button>
+        </div>
+    );
 };
 
 export default ChatWidget;

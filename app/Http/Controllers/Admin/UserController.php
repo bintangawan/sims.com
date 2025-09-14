@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Auth; // ← tambahkan
 use Inertia\Inertia;
+use Maatwebsite\Excel\Concerns\FromArray;
 
 class UserController extends Controller
 {
@@ -21,34 +23,49 @@ class UserController extends Controller
     {
         $query = User::with(['roles', 'siswaProfile', 'guruProfile'])
             ->when($request->search, function ($q, $search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                $q->where(function ($query) use ($search) {
+                    $query->where('name', 'like', "%{$search}%")
+                          ->orWhere('email', 'like', "%{$search}%");
+                });
             })
             ->when($request->role, function ($q, $role) {
                 $q->whereHas('roles', function ($roleQuery) use ($role) {
                     $roleQuery->where('name', $role);
                 });
             })
-            ->when($request->status !== null, function ($q) use ($request) {
-                $q->where('email_verified_at', $request->status ? '!=' : '=', null);
-            });
-
-        $users = $query->paginate(15)->withQueryString();
-
+            ->when($request->has('status'), function ($q) use ($request) {
+                if ($request->status === '1') {
+                    $q->whereNotNull('email_verified_at');
+                } elseif ($request->status === '0') {
+                    $q->whereNull('email_verified_at');
+                }
+            })
+            ->orderBy('created_at', 'desc');
+    
+        $users = $query->paginate(10)->withQueryString();
         $roles = Role::all();
-
-        return Inertia::render('Admin/Users', [
+    
+        return Inertia::render('Admin/Users/Index', [
             'users' => $users,
             'roles' => $roles,
-            'filters' => $request->only(['search', 'role', 'status'])
+            'filters' => [
+                'search' => $request->search,
+                'role' => $request->role,
+                'status' => $request->status ? (bool) $request->status : null,
+            ],
         ]);
     }
 
     public function create()
     {
         $roles = Role::all();
+        $waliKelas = User::whereHas('roles', function ($query) {
+            $query->where('name', 'guru');
+        })->get(['id', 'name']);
+        
         return Inertia::render('Admin/Users/Create', [
-            'roles' => $roles
+            'roles' => $roles,
+            'waliKelas' => $waliKelas
         ]);
     }
 
@@ -118,10 +135,14 @@ class UserController extends Controller
     {
         $user->load(['roles', 'siswaProfile', 'guruProfile']);
         $roles = Role::all();
+        $waliKelas = User::whereHas('roles', function ($query) {
+            $query->where('name', 'guru');
+        })->get(['id', 'name']);
         
         return Inertia::render('Admin/Users/Edit', [
             'user' => $user,
-            'roles' => $roles
+            'roles' => $roles,
+            'waliKelas' => $waliKelas
         ]);
     }
 
@@ -195,7 +216,8 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
-        if ($user->id === auth()->id()) {
+        $authId = Auth::id(); // int|null
+        if ($authId !== null && $user->id === $authId) {
             return back()->with('error', 'Tidak dapat menghapus akun sendiri.');
         }
 
@@ -211,13 +233,13 @@ class UserController extends Controller
 
     public function import(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'file' => 'required|file|mimes:csv,xlsx,xls|max:2048'
         ]);
 
         try {
             $file = $request->file('file');
-            $data = Excel::toArray([], $file)[0];
+            $data = Excel::toArray(new \stdClass(), $file)[0];
             
             // Skip header row
             array_shift($data);
@@ -228,8 +250,10 @@ class UserController extends Controller
             DB::transaction(function () use ($data, &$imported, &$errors) {
                 foreach ($data as $index => $row) {
                     try {
-                        if (empty($row[0]) || empty($row[1]) || empty($row[2])) {
-                            continue; // Skip empty rows
+                        // Validate required fields
+                        if (empty($row[0]) || empty($row[1]) || empty($row[3])) {
+                            $errors[] = "Baris " . ($index + 2) . ": Data tidak lengkap (nama, email, role wajib diisi).";
+                            continue;
                         }
 
                         // Check if email already exists
@@ -241,11 +265,11 @@ class UserController extends Controller
                         $user = User::create([
                             'name' => $row[0],
                             'email' => $row[1],
-                            'password' => Hash::make($row[2] ?? 'password123'),
-                            'email_verified_at' => now()
+                            'password' => Hash::make($row[2] ?? 'password'),
+                            'email_verified_at' => now(),
                         ]);
 
-                        $role = $row[3] ?? 'siswa';
+                        $role = strtolower($row[3]);
                         $user->assignRole($role);
 
                         if ($role === 'siswa') {
@@ -256,11 +280,26 @@ class UserController extends Controller
                                 continue;
                             }
 
+                            // Validate wali_kelas_id if provided
+                            $waliKelasId = null;
+                            if (!empty($row[7])) {
+                                $waliKelas = User::whereHas('roles', function ($query) {
+                                    $query->where('name', 'guru');
+                                })->where('id', $row[7])->first();
+                                
+                                if ($waliKelas) {
+                                    $waliKelasId = $row[7];
+                                } else {
+                                    $errors[] = "Baris " . ($index + 2) . ": Wali kelas dengan ID {$row[7]} tidak ditemukan atau bukan guru.";
+                                }
+                            }
+
                             SiswaProfile::create([
                                 'user_id' => $user->id,
                                 'nis' => $row[4] ?? 'SIS' . str_pad($user->id, 6, '0', STR_PAD_LEFT),
                                 'angkatan' => $row[5] ?? date('Y'),
-                                'kelas' => $row[6] ?? null
+                                'kelas' => $row[6] ?? null,
+                                'wali_kelas_id' => $waliKelasId
                             ]);
                         } elseif ($role === 'guru') {
                             // Check if NIDN already exists
@@ -307,15 +346,23 @@ class UserController extends Controller
     public function export(Request $request)
     {
         $users = User::with(['roles', 'siswaProfile', 'guruProfile'])
-            ->when($request->role, function ($q, $role) {
-                $q->whereHas('roles', function ($roleQuery) use ($role) {
-                    $roleQuery->where('name', $role);
-                });
-            })
-            ->get();
+        ->when($request->role, function ($q, $role) {
+            $q->whereHas('roles', function ($roleQuery) use ($role) {
+                $roleQuery->where('name', $role);
+            });
+        })
+        // tambahkan ini agar ?status=1 / 0 berfungsi
+        ->when($request->has('status'), function ($q) use ($request) {
+            if ($request->status === '1') {
+                $q->whereNotNull('email_verified_at');
+            } elseif ($request->status === '0') {
+                $q->whereNull('email_verified_at');
+            }
+        })
+        ->get();
 
         $data = [];
-        $data[] = ['Name', 'Email', 'Role', 'NIS/NIDN', 'Angkatan/NUPTK', 'Kelas/Mapel', 'Telepon', 'Status'];
+        $data[] = ['Name', 'Email', 'Role', 'NIS/NIDN', 'Angkatan/NUPTK', 'Kelas/Mapel', 'Telepon/Wali_Kelas_ID', 'Status'];
 
         foreach ($users as $user) {
             $role = $user->roles->first()?->name ?? 'N/A';
@@ -328,6 +375,7 @@ class UserController extends Controller
                 $identifier = $user->siswaProfile->nis;
                 $secondary = $user->siswaProfile->angkatan;
                 $tertiary = $user->siswaProfile->kelas;
+                $phone = $user->siswaProfile->wali_kelas_id ?? '';
             } elseif ($role === 'guru' && $user->guruProfile) {
                 $identifier = $user->guruProfile->nidn;
                 $secondary = $user->guruProfile->nuptk;
@@ -349,7 +397,7 @@ class UserController extends Controller
 
         $filename = 'users_export_' . date('Y-m-d_H-i-s') . '.xlsx';
         
-        return Excel::download(new class($data) implements \Maatwebsite\Excel\Concerns\FromArray {
+        return Excel::download(new class($data) implements FromArray {
             private $data;
             
             public function __construct($data) {
@@ -364,7 +412,8 @@ class UserController extends Controller
 
     public function toggleStatus(User $user)
     {
-        if ($user->id === auth()->id()) {
+        $authId = Auth::id();
+        if ($authId !== null && $user->id === $authId) {
             return back()->with('error', 'Tidak dapat mengubah status akun sendiri.');
         }
 
@@ -373,8 +422,7 @@ class UserController extends Controller
         ]);
 
         $status = $user->email_verified_at ? 'diaktifkan' : 'dinonaktifkan';
-        
-        return back()->with('success', "User berhasil {$status}.");
+        return back()->with('success', "Status user berhasil {$status}.");
     }
 
     public function resetPassword(User $user)

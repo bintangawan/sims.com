@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Term;
 use App\Models\Subject;
 use App\Models\Section;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Validator;
@@ -20,11 +21,24 @@ class MasterDataController extends Controller
         $sections = Section::with(['subject', 'guru', 'term'])
             ->orderBy('id', 'desc')
             ->paginate(10);
-
+        
+        // Tambahkan data guru untuk dropdown
+        $gurus = User::whereHas('roles', function($q) {
+            $q->where('name', 'guru');
+        })->with('guruProfile')->get()->map(function($user) {
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'nidn' => $user->guruProfile?->nidn,
+                'mapel_keahlian' => $user->guruProfile?->mapel_keahlian
+            ];
+        });
+    
         return Inertia::render('Admin/MasterData', [
             'terms' => $terms,
             'subjects' => $subjects,
             'sections' => $sections,
+            'gurus' => $gurus,
         ]);
     }
 

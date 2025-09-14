@@ -30,11 +30,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::delete('/master-data/sections/{section}', [MasterDataController::class, 'destroySection'])->name('master-data.destroy-section');
     
     // Users Management
-    Route::resource('users', UserController::class);
     Route::post('users/import', [UserController::class, 'import'])->name('users.import');
     Route::get('users/export', [UserController::class, 'export'])->name('users.export');
     Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
     Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+    Route::resource('users', UserController::class);
     
     // Jadwal Management
     Route::get('/jadwal', [JadwalController::class, 'index'])->name('jadwal.index');
