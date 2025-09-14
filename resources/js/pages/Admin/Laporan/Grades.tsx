@@ -1,12 +1,14 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, Download, Filter, RotateCcw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 interface GradeData {
     student_name: string;
@@ -37,7 +39,7 @@ interface Term {
     aktif: boolean;
 }
 
-// ✅ Tambah tipe link untuk pagination Laravel
+// Pagination Laravel
 interface PaginationLink {
     url: string | null;
     label: string;
@@ -52,7 +54,6 @@ interface PaginatedData {
     total: number;
     from: number;
     to: number;
-    // ✅ Tambahkan properti links agar dikenal TS
     links?: PaginationLink[];
 }
 
@@ -71,31 +72,159 @@ interface Props {
     filters: Filters;
 }
 
+// sentinel untuk "Semua Mapel"
+const SECTION_ALL = 'all';
+
 // Form state internal—semua string
 type FiltersForm = {
     term_id: string;
-    section_id: string;
+    section_id: string; // SECTION_ALL atau id string
     min_score: string;
     max_score: string;
 };
 
+// Payload builder: kirim hanya field yang ada
+const buildPayload = (f: FiltersForm): Record<string, string> => {
+    const out: Record<string, string> = {};
+    if (f.term_id) out.term_id = f.term_id;
+    if (f.section_id && f.section_id !== SECTION_ALL) out.section_id = f.section_id;
+    if (f.min_score) out.min_score = f.min_score;
+    if (f.max_score) out.max_score = f.max_score;
+    return out;
+};
+
+// Dialog Export (mirip Attendance)
+function ExportGradesDialog({
+    open,
+    onOpenChange,
+    terms,
+    sections,
+    initial,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    terms: Term[];
+    sections: Section[];
+    initial: FiltersForm;
+}) {
+    const [form, setForm] = useState<FiltersForm>(initial);
+
+    const exportUrl = useMemo(() => {
+        const params = new URLSearchParams(buildPayload(form)).toString();
+        return params ? `/admin/laporan/export/grades?${params}` : `/admin/laporan/export/grades`;
+    }, [form]);
+
+    const download = () => {
+        toast.info('Menyiapkan file Excel...');
+        window.open(exportUrl, '_blank', 'noopener');
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="rounded-2xl sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Download className="h-5 w-5" />
+                        Export Laporan Nilai
+                    </DialogTitle>
+                    <DialogDescription>
+                        Pilih kriteria export. File akan diunduh dalam format <b>.xlsx</b>.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-4 py-2">
+                    {/* Term */}
+                    <div className="grid grid-cols-4 items-center gap-3">
+                        <label className="text-right text-sm">Term</label>
+                        <div className="col-span-3">
+                            <Select value={form.term_id} onValueChange={(v) => setForm((p) => ({ ...p, term_id: v }))}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Pilih Term" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {terms.map((t) => (
+                                        <SelectItem key={t.id} value={String(t.id)}>
+                                            {t.nama} ({t.tahun})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    {/* Section */}
+                    <div className="grid grid-cols-4 items-center gap-3">
+                        <label className="text-right text-sm">Mata Pelajaran</label>
+                        <div className="col-span-3">
+                            <Select value={form.section_id} onValueChange={(v) => setForm((p) => ({ ...p, section_id: v }))}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Semua Mapel" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={SECTION_ALL}>Semua Mapel</SelectItem>
+                                    {sections.map((s) => (
+                                        <SelectItem key={s.id} value={String(s.id)}>
+                                            {s.subject.nama}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    {/* Min/Max score */}
+                    <div className="grid grid-cols-4 items-center gap-3">
+                        <label className="text-right text-sm">Range Nilai</label>
+                        <div className="col-span-3 grid grid-cols-2 gap-2">
+                            <Input
+                                type="number"
+                                placeholder="Min"
+                                min={0}
+                                max={100}
+                                value={form.min_score}
+                                onChange={(e) => setForm((p) => ({ ...p, min_score: e.target.value }))}
+                            />
+                            <Input
+                                type="number"
+                                placeholder="Max"
+                                min={0}
+                                max={100}
+                                value={form.max_score}
+                                onChange={(e) => setForm((p) => ({ ...p, max_score: e.target.value }))}
+                            />
+                        </div>
+                    </div>
+
+                    {/* URL preview */}
+                    <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                        URL: <span className="font-mono break-all text-foreground">{exportUrl}</span>
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>
+                        Batal
+                    </Button>
+                    <Button onClick={download}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export Excel
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 const Grades: React.FC<Props> = ({ gradesData, gradeStats, sections, terms, filters }) => {
     const [formData, setFormData] = useState<FiltersForm>({
         term_id: filters.term_id ?? '',
-        section_id: filters.section_id ?? '',
+        section_id: filters.section_id ?? SECTION_ALL,
         min_score: filters.min_score ?? '',
         max_score: filters.max_score ?? '',
     });
 
-    // Utility: hanya kirim field yang tidak kosong ke Inertia
-    const buildPayload = (f: FiltersForm): Record<string, string> => {
-        const out: Record<string, string> = {};
-        if (f.term_id) out.term_id = f.term_id;
-        if (f.section_id) out.section_id = f.section_id;
-        if (f.min_score) out.min_score = f.min_score;
-        if (f.max_score) out.max_score = f.max_score;
-        return out;
-    };
+    const [openExport, setOpenExport] = useState(false);
 
     const handleFilter = () => {
         router.get('/admin/laporan/grades', buildPayload(formData), {
@@ -105,18 +234,9 @@ const Grades: React.FC<Props> = ({ gradesData, gradeStats, sections, terms, filt
     };
 
     const handleReset = () => {
-        const cleared: FiltersForm = { term_id: '', section_id: '', min_score: '', max_score: '' };
+        const cleared: FiltersForm = { term_id: '', section_id: SECTION_ALL, min_score: '', max_score: '' };
         setFormData(cleared);
         router.get('/admin/laporan/grades', {}, { preserveState: true, preserveScroll: true });
-    };
-
-    const exportUrl = useMemo(() => {
-        const params = new URLSearchParams(buildPayload(formData)).toString();
-        return params ? `/admin/laporan/export/grades?${params}` : `/admin/laporan/export/grades`;
-    }, [formData]);
-
-    const handleExport = () => {
-        window.open(exportUrl, '_blank');
     };
 
     const getScoreBadge = (score: number) => {
@@ -150,6 +270,7 @@ const Grades: React.FC<Props> = ({ gradesData, gradeStats, sections, terms, filt
             <Head title="Laporan Nilai" />
 
             <div className="space-y-6 p-6">
+                {/* Header */}
                 <div className="flex items-center justify-between">
                     <Link href="/admin/laporan">
                         <Button variant="outline" size="sm">
@@ -163,9 +284,10 @@ const Grades: React.FC<Props> = ({ gradesData, gradeStats, sections, terms, filt
                             <p className="text-muted-foreground">Analisis data nilai siswa</p>
                         </div>
                     </div>
-                    <Button onClick={handleExport} className="flex items-center space-x-2">
+                    {/* Buka dialog export */}
+                    <Button onClick={() => setOpenExport(true)} className="flex items-center space-x-2">
                         <Download className="h-4 w-4" />
-                        <span>Export CSV</span>
+                        <span>Export Excel</span>
                     </Button>
                 </div>
 
@@ -230,9 +352,10 @@ const Grades: React.FC<Props> = ({ gradesData, gradeStats, sections, terms, filt
                                     onValueChange={(value) => setFormData((prev) => ({ ...prev, section_id: value }))}
                                 >
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Pilih Mata Pelajaran" />
+                                        <SelectValue placeholder="Semua Mapel" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value={SECTION_ALL}>Semua Mapel</SelectItem>
                                         {sections.map((section) => (
                                             <SelectItem key={section.id} value={String(section.id)}>
                                                 {section.subject.nama}
@@ -358,7 +481,6 @@ const Grades: React.FC<Props> = ({ gradesData, gradeStats, sections, terms, filt
                                                 </Button>
                                             );
                                         }
-                                        // halaman angka
                                         const isNumber = !Number.isNaN(Number(link.label));
                                         if (isNumber) {
                                             return (
@@ -381,6 +503,9 @@ const Grades: React.FC<Props> = ({ gradesData, gradeStats, sections, terms, filt
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Dialog Export */}
+            <ExportGradesDialog open={openExport} onOpenChange={setOpenExport} terms={terms} sections={sections} initial={formData} />
         </AppLayout>
     );
 };

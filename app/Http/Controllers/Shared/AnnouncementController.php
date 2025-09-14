@@ -133,7 +133,7 @@ class AnnouncementController extends Controller
                 ->with(['subject', 'term'])
                 ->get();
         } elseif ($userRole === 'admin') {
-            $sections = Section::with(['subject', 'guru.user', 'term'])
+            $sections = Section::with(['subject', 'guru', 'term'])
                 ->orderBy('created_at', 'desc')
                 ->get();
         }
@@ -251,7 +251,7 @@ class AnnouncementController extends Controller
                 ->with(['subject', 'term'])
                 ->get();
         } elseif ($userRole === 'admin') {
-            $sections = Section::with(['subject', 'guru.user', 'term'])
+            $sections = Section::with(['subject', 'guru', 'term'])
                 ->orderBy('created_at', 'desc')
                 ->get();
         }

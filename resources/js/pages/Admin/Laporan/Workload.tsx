@@ -1,11 +1,13 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, BookOpen, Download, Filter, GraduationCap, RotateCcw, Users } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 interface WorkloadData {
     id: number;
@@ -48,16 +50,105 @@ interface Props {
     filters: Filters;
 }
 
+// ────────────────────────────────────────────────────────────────────────────────
+// Helpers
+const n = (v: unknown) => Number(v ?? 0) || 0;
+
+const buildPayload = (f: Filters): Record<string, string> => {
+    const out: Record<string, string> = {};
+    if (f.term_id) out.term_id = f.term_id;
+    return out;
+};
+
+// Dialog Export (mirip yang di Attendance/Grades)
+function ExportWorkloadDialog({
+    open,
+    onOpenChange,
+    terms,
+    initial,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    terms: Term[];
+    initial: Filters;
+}) {
+    const [form, setForm] = useState<Filters>({
+        term_id: initial.term_id ?? '',
+    });
+
+    const exportUrl = useMemo(() => {
+        const params = new URLSearchParams(buildPayload(form)).toString();
+        return params ? `/admin/laporan/export/workload?${params}` : `/admin/laporan/export/workload`;
+    }, [form]);
+
+    const download = () => {
+        toast.info('Menyiapkan file Excel...');
+        window.open(exportUrl, '_blank', 'noopener');
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="rounded-2xl sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Download className="h-5 w-5" />
+                        Export Laporan Beban Kerja
+                    </DialogTitle>
+                    <DialogDescription>
+                        Pilih kriteria export. File akan diunduh dalam format <b>.xlsx</b>.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-4 py-2">
+                    {/* Term */}
+                    <div className="grid grid-cols-4 items-center gap-3">
+                        <label className="text-right text-sm">Term</label>
+                        <div className="col-span-3">
+                            <Select value={form.term_id ?? ''} onValueChange={(v) => setForm((p) => ({ ...p, term_id: v }))}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Pilih Term" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {terms.map((t) => (
+                                        <SelectItem key={t.id} value={String(t.id)}>
+                                            {t.nama} ({t.tahun})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                        URL: <span className="font-mono break-all text-foreground">{exportUrl}</span>
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>
+                        Batal
+                    </Button>
+                    <Button onClick={download}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export Excel
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+
 const Workload: React.FC<Props> = ({ workloadData, terms, filters }) => {
     const [formData, setFormData] = useState<Filters>({
         term_id: filters.term_id || '',
     });
-
-    // Helper konversi aman ke number
-    const n = (v: unknown) => Number(v ?? 0) || 0;
+    const [openExport, setOpenExport] = useState(false);
 
     const handleFilter = () => {
-        const params = Object.fromEntries(Object.entries(formData).filter(([, value]) => value !== ''));
+        const params = buildPayload(formData);
         router.get('/admin/laporan/workload', params, {
             preserveState: true,
             preserveScroll: true,
@@ -66,19 +157,7 @@ const Workload: React.FC<Props> = ({ workloadData, terms, filters }) => {
 
     const handleReset = () => {
         setFormData({ term_id: '' });
-        router.get(
-            '/admin/laporan/workload',
-            {},
-            {
-                preserveState: true,
-                preserveScroll: true,
-            },
-        );
-    };
-
-    const handleExport = () => {
-        const params = new URLSearchParams(formData as Record<string, string>);
-        window.open(`/admin/laporan/export/workload?${params.toString()}`, '_blank');
+        router.get('/admin/laporan/workload', {}, { preserveState: true, preserveScroll: true });
     };
 
     const getWorkloadBadge = (totalSections: number | string) => {
@@ -100,14 +179,7 @@ const Workload: React.FC<Props> = ({ workloadData, terms, filters }) => {
         });
     };
 
-    // Helper untuk build payload
-    const buildPayload = (f: Filters): Record<string, string> => {
-        const out: Record<string, string> = {};
-        if (f.term_id) out.term_id = f.term_id;
-        return out;
-    };
-
-    // Statistik (pastikan konversi ke number)
+    // Statistik (konversi ke number dulu)
     const totalTeachers = workloadData.data.length;
     const totalSections = workloadData.data.reduce((sum, t) => sum + n(t.total_sections), 0);
     const totalStudents = workloadData.data.reduce((sum, t) => sum + n(t.total_students), 0);
@@ -117,15 +189,9 @@ const Workload: React.FC<Props> = ({ workloadData, terms, filters }) => {
         <AppLayout>
             <Head title="Laporan Beban Kerja Guru" />
 
-            {/* Tambahkan padding agar tidak mepet seperti Dashboard */}
+            {/* Padding biar ga mepet sidebar (seragam dg Dashboard) */}
             <div className="space-y-6 p-6">
-                {/* <div className="flex items-center justify-between">
-                    <h1 className="text-3xl font-bold">Laporan Beban Kerja Guru</h1>
-                    <Button onClick={handleExport} className="flex items-center gap-2">
-                        <Download className="h-4 w-4" />
-                        Export CSV
-                    </Button>
-                </div> */}
+                {/* Header */}
                 <div className="flex items-center justify-between">
                     <Link href="/admin/laporan">
                         <Button variant="outline" size="sm">
@@ -140,9 +206,10 @@ const Workload: React.FC<Props> = ({ workloadData, terms, filters }) => {
                         </div>
                     </div>
 
-                    <Button onClick={handleExport} className="flex items-center space-x-2">
+                    {/* Buka dialog export */}
+                    <Button onClick={() => setOpenExport(true)} className="flex items-center space-x-2">
                         <Download className="h-4 w-4" />
-                        <span>Export CSV</span>
+                        <span>Export Excel</span>
                     </Button>
                 </div>
 
@@ -324,7 +391,7 @@ const Workload: React.FC<Props> = ({ workloadData, terms, filters }) => {
                                             return (
                                                 <Button
                                                     key={index}
-                                                    variant={link.active ? "default" : "outline"}
+                                                    variant={link.active ? 'default' : 'outline'}
                                                     size="sm"
                                                     disabled={!link.url}
                                                     onClick={() => link.url && handlePageChange(link.url)}
@@ -341,6 +408,9 @@ const Workload: React.FC<Props> = ({ workloadData, terms, filters }) => {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Dialog Export */}
+            <ExportWorkloadDialog open={openExport} onOpenChange={setOpenExport} terms={terms} initial={formData} />
         </AppLayout>
     );
 };

@@ -14,6 +14,8 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\Concerns\FromArray;
 
 class LaporanController extends Controller
 {
@@ -190,152 +192,168 @@ class LaporanController extends Controller
 
     private function exportAttendance($termId, $request)
     {
-        $startDate = $request->start_date ? Carbon::parse($request->start_date) : Carbon::now()->startOfMonth();
-        $endDate = $request->end_date ? Carbon::parse($request->end_date) : Carbon::now()->endOfMonth();
+    $startDate = $request->start_date ? Carbon::parse($request->start_date) : Carbon::now()->startOfMonth();
+    $endDate = $request->end_date ? Carbon::parse($request->end_date) : Carbon::now()->endOfMonth();
+    $sectionId = $request->section_id; // ← ambil section_id
 
-        $data = AttendanceDetail::select(
-                'users.name as Nama_Siswa',
-                'subjects.nama as Mata_Pelajaran',
-                'attendances.tanggal as Tanggal',
-                'attendance_details.status as Status',
-                'attendance_details.note as Catatan'
-            )
-            ->join('attendances', 'attendance_details.attendance_id', '=', 'attendances.id')
-            ->join('sections', 'attendances.section_id', '=', 'sections.id')
-            ->join('subjects', 'sections.subject_id', '=', 'subjects.id')
-            ->join('users', 'attendance_details.user_id', '=', 'users.id')
-            ->where('sections.term_id', $termId)
-            ->whereBetween('attendances.tanggal', [$startDate, $endDate])
-            ->orderBy('users.name')
-            ->orderBy('attendances.tanggal')
-            ->get();
+    $attendanceData = AttendanceDetail::select(
+            'users.name',
+            'subjects.nama as subject_name',
+            'attendances.tanggal',
+            'attendance_details.status',
+            'attendance_details.note'
+        )
+        ->join('attendances', 'attendance_details.attendance_id', '=', 'attendances.id')
+        ->join('sections', 'attendances.section_id', '=', 'sections.id')
+        ->join('subjects', 'sections.subject_id', '=', 'subjects.id')
+        ->join('users', 'attendance_details.user_id', '=', 'users.id')
+        ->where('sections.term_id', $termId)
+        ->when($sectionId, fn($q) => $q->where('sections.id', $sectionId)) // ← filter kelas
+        ->whereBetween('attendances.tanggal', [$startDate, $endDate])
+        ->orderBy('users.name')
+        ->orderBy('attendances.tanggal')
+        ->get();
 
-        $filename = 'laporan_absensi_' . date('Y-m-d') . '.csv';
+        $data = [];
+        $data[] = ['Nama Siswa', 'Mata Pelajaran', 'Tanggal', 'Status', 'Catatan'];
+
+        foreach ($attendanceData as $row) {
+            $data[] = [
+                $row->name,
+                $row->subject_name,
+                $row->tanggal,
+                ucfirst($row->status),
+                $row->note ?? '-'
+            ];
+        }
+
+        $filename = 'laporan_absensi_' . date('Y-m-d_H-i-s') . '.xlsx';
         
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ];
-
-        $callback = function() use ($data) {
-            $file = fopen('php://output', 'w');
+        return Excel::download(new class($data) implements FromArray {
+            private $data;
             
-            // Add BOM for UTF-8
-            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-            
-            // Headers
-            fputcsv($file, ['Nama Siswa', 'Mata Pelajaran', 'Tanggal', 'Status', 'Catatan']);
-            
-            foreach ($data as $row) {
-                fputcsv($file, [
-                    $row->Nama_Siswa,
-                    $row->Mata_Pelajaran,
-                    $row->Tanggal,
-                    ucfirst($row->Status),
-                    $row->Catatan ?? '-'
-                ]);
+            public function __construct($data) {
+                $this->data = $data;
             }
             
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
+            public function array(): array {
+                return $this->data;
+            }
+        }, $filename);
     }
 
-    private function exportGrades($termId, $request)
+    // ⬇️ Export Grades (Excel) — sesuai permintaan + mendukung filter section/min/max score
+    private function exportGrades($termId, Request $request)
     {
-        $data = Grade::select(
-                'users.name as Nama_Siswa',
-                'subjects.nama as Mata_Pelajaran',
-                'assignments.judul as Tugas',
-                'grades.score as Nilai',
-                'grades.created_at as Tanggal_Input'
+        $sectionId = $request->section_id;
+        $minScore  = $request->min_score;
+        $maxScore  = $request->max_score;
+
+        $gradesData = Grade::select(
+                'users.name',
+                'subjects.nama as subject_name',
+                'subjects.kode as subject_code',
+                'sections.id as section_id',
+                'guru.name as guru_name',
+                'grades.komponen',
+                'grades.skor',
+                'grades.bobot',
+                'grades.created_at'
             )
-            ->join('assignments', 'grades.assignment_id', '=', 'assignments.id')
-            ->join('sections', 'assignments.section_id', '=', 'sections.id')
+            ->join('sections', 'grades.section_id', '=', 'sections.id')
             ->join('subjects', 'sections.subject_id', '=', 'subjects.id')
             ->join('users', 'grades.user_id', '=', 'users.id')
+            ->join('users as guru', 'sections.guru_id', '=', 'guru.id')
             ->where('sections.term_id', $termId)
+            ->when($sectionId, function ($q) use ($sectionId) {
+                $q->where('sections.id', $sectionId);
+            })
+            ->when($minScore !== null && $minScore !== '', function ($q) use ($minScore) {
+                $q->where('grades.skor', '>=', $minScore);
+            })
+            ->when($maxScore !== null && $maxScore !== '', function ($q) use ($maxScore) {
+                $q->where('grades.skor', '<=', $maxScore);
+            })
             ->orderBy('subjects.nama')
             ->orderBy('users.name')
             ->get();
 
-        $filename = 'laporan_nilai_' . date('Y-m-d') . '.csv';
-        
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ];
+        $data   = [];
+        $data[] = ['Nama Siswa', 'Mata Pelajaran', 'Kelas', 'Guru', 'Komponen', 'Skor', 'Bobot', 'Tanggal Input'];
 
-        $callback = function() use ($data) {
-            $file = fopen('php://output', 'w');
-            
-            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($file, ['Nama Siswa', 'Mata Pelajaran', 'Tugas', 'Nilai', 'Tanggal Input']);
-            
-            foreach ($data as $row) {
-                fputcsv($file, [
-                    $row->Nama_Siswa,
-                    $row->Mata_Pelajaran,
-                    $row->Tugas,
-                    $row->Nilai,
-                    $row->Tanggal_Input
-                ]);
-            }
-            
-            fclose($file);
-        };
+        foreach ($gradesData as $row) {
+            // Kelas: gabungan subject_code-section_id (misal: MAT-12)
+            $sectionName = $row->subject_code . '-' . $row->section_id;
 
-        return response()->stream($callback, 200, $headers);
+            $data[] = [
+                $row->name,
+                $row->subject_name,
+                $sectionName,
+                $row->guru_name,
+                $row->komponen,
+                $row->skor,
+                $row->bobot,
+                $row->created_at->format('Y-m-d H:i:s'),
+            ];
+        }
+
+        $filename = 'laporan_nilai_' . date('Y-m-d_H-i-s') . '.xlsx';
+
+        return Excel::download(new class($data) implements FromArray {
+            private $data;
+            public function __construct($data) { $this->data = $data; }
+            public function array(): array { return $this->data; }
+        }, $filename);
     }
 
-    private function exportWorkload($termId, $request)
+
+
+    // ⬇️ Export Workload (Excel) — sudah pakai term_id dari export dialog
+    private function exportWorkload($termId, Request $request)
     {
-        $data = User::role('guru')
-            ->select(
-                'users.name as Nama_Guru',
-                'users.email as Email',
-                DB::raw('COUNT(sections.id) as Total_Kelas'),
-                DB::raw('SUM(COALESCE(sections.kapasitas, 0)) as Total_Siswa'),
-                DB::raw('COUNT(DISTINCT subjects.id) as Total_Mapel')
+        $workloadData = Section::select(
+                'users.name as guru_name',
+                'subjects.nama as subject_name',
+                'subjects.kode as subject_code',
+                'sections.id as section_id',
+                'sections.kapasitas',
+                DB::raw('COUNT(DISTINCT section_students.user_id) as registered_students')
             )
-            ->leftJoin('sections', function($join) use ($termId) {
-                $join->on('users.id', '=', 'sections.guru_id')
-                     ->where('sections.term_id', $termId);
-            })
-            ->leftJoin('subjects', 'sections.subject_id', '=', 'subjects.id')
-            ->groupBy('users.id', 'users.name', 'users.email')
+            ->join('subjects', 'sections.subject_id', '=', 'subjects.id')
+            ->join('users', 'sections.guru_id', '=', 'users.id')
+            ->leftJoin('section_students', 'sections.id', '=', 'section_students.section_id')
+            ->where('sections.term_id', $termId)
+            ->groupBy('sections.id', 'users.name', 'subjects.nama', 'subjects.kode', 'sections.kapasitas')
             ->orderBy('users.name')
+            ->orderBy('subjects.nama')
             ->get();
 
-        $filename = 'laporan_beban_mengajar_' . date('Y-m-d') . '.csv';
-        
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ];
+        $data   = [];
+        $data[] = ['Nama Guru', 'Mata Pelajaran', 'Kode Mapel', 'Kelas', 'Kapasitas', 'Siswa Terdaftar'];
 
-        $callback = function() use ($data) {
-            $file = fopen('php://output', 'w');
+        foreach ($workloadData as $row) {
+            // Buat nama kelas dari kombinasi subject_code dan section_id
+            $sectionName = $row->subject_code . '-' . $row->section_id;
             
-            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($file, ['Nama Guru', 'Email', 'Total Kelas', 'Total Siswa', 'Total Mata Pelajaran']);
-            
-            foreach ($data as $row) {
-                fputcsv($file, [
-                    $row->Nama_Guru,
-                    $row->Email,
-                    $row->Total_Kelas,
-                    $row->Total_Siswa,
-                    $row->Total_Mapel
-                ]);
-            }
-            
-            fclose($file);
-        };
+            $data[] = [
+                $row->guru_name,
+                $row->subject_name,
+                $row->subject_code,
+                $sectionName,
+                $row->kapasitas ?? 0,
+                $row->registered_students,
+            ];
+        }
 
-        return response()->stream($callback, 200, $headers);
+        $filename = 'laporan_beban_kerja_' . date('Y-m-d_H-i-s') . '.xlsx';
+
+        return Excel::download(new class($data) implements FromArray {
+            private $data;
+            public function __construct($data) { $this->data = $data; }
+            public function array(): array { return $this->data; }
+        }, $filename);
     }
+
 
     private function getAttendanceRate($termId)
     {
