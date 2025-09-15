@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,8 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { type PaginatedData } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { CheckCircle, Edit, Plus, Trash2 } from 'lucide-react';
-import { ReactNode, useState } from 'react';
+import { CheckCircle, Download, Edit, X as IconX, Plus, Trash2, Upload } from 'lucide-react';
+import { ReactNode, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 // Shadcn AlertDialog family (dipakai di ConfirmDeleteDialog)
@@ -66,10 +66,18 @@ interface Section {
     [key: string]: string | number | boolean | undefined | Record<string, unknown>[] | Subject | Term | { id: number; name: string; email?: string };
 }
 
+interface Guru {
+    id: number;
+    name: string;
+    nidn?: string;
+    mapel_keahlian?: string;
+}
+
 interface Props {
     terms: Term[];
     subjects: Subject[];
     sections: PaginatedData<Section>;
+    gurus: Guru[];
 }
 
 type FormDataType = Record<string, string | number | boolean>;
@@ -137,23 +145,189 @@ function ConfirmDeleteDialog({
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
+// Reusable Import Dialog (mirip Users/Index)
+type ImportDialogProps = {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    uploadUrl: string; // endpoint upload (router.post)
+    title: string; // judul dialog
+    onDone?: () => void; // callback setelah sukses
+};
 
-export default function MasterData({ terms, subjects, sections }: Props) {
+function humanSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function ImportDialog({ open, onOpenChange, uploadUrl, title, onDone }: ImportDialogProps) {
+    const [file, setFile] = useState<File | null>(null);
+    const [dragging, setDragging] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const maxSizeBytes = 2 * 1024 * 1024;
+    const allowed = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+
+    const validateFile = (f: File) => {
+        if (!allowed.includes(f.type) && !/\.(csv|xlsx|xls)$/i.test(f.name)) {
+            toast.error('Format file tidak didukung. Gunakan .csv, .xlsx, atau .xls');
+            return false;
+        }
+        if (f.size > maxSizeBytes) {
+            toast.error('Ukuran file maksimal 2MB');
+            return false;
+        }
+        return true;
+    };
+
+    const pickFile = () => inputRef.current?.click();
+    const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        if (!validateFile(f)) {
+            e.target.value = '';
+            return;
+        }
+        setFile(f);
+    };
+
+    const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragging(false);
+        const f = e.dataTransfer.files?.[0];
+        if (f && validateFile(f)) setFile(f);
+    };
+    const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!dragging) setDragging(true);
+    };
+    const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragging(false);
+    };
+    const clearFile = () => {
+        setFile(null);
+        if (inputRef.current) inputRef.current.value = '';
+    };
+
+    const upload = () => {
+        if (!file) {
+            toast.error('Silakan pilih file terlebih dahulu');
+            return;
+        }
+        setUploading(true);
+
+        const fd = new FormData();
+        fd.append('file', file);
+
+        router.post(uploadUrl, fd, {
+            onSuccess: () => {
+                toast.success('Import berhasil diproses');
+                clearFile();
+                onOpenChange(false);
+                onDone?.();
+            },
+            onError: () => toast.error('Gagal import file'),
+            onFinish: () => setUploading(false),
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={(v) => !uploading && onOpenChange(v)}>
+            <DialogContent className="rounded-2xl sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Upload className="h-5 w-5" />
+                        {title}
+                    </DialogTitle>
+                    <DialogDescription>
+                        Unggah file <b>CSV/XLSX/XLS</b>. Maksimal <b>2MB</b>.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div
+                    onDrop={onDrop}
+                    onDragOver={onDragOver}
+                    onDragLeave={onDragLeave}
+                    className={`mt-3 flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-6 text-center transition ${
+                        dragging ? 'border-primary/60 bg-primary/5' : 'border-muted-foreground/20'
+                    }`}
+                >
+                    <Upload className="h-6 w-6 opacity-70" />
+                    <div className="text-sm">
+                        Seret & letakkan file di sini, atau{' '}
+                        <button type="button" onClick={pickFile} className="font-semibold underline underline-offset-4">
+                            pilih file
+                        </button>
+                    </div>
+                    <div className="text-xs text-muted-foreground">Format: .csv, .xlsx, .xls — Maks 2MB</div>
+
+                    <input
+                        ref={inputRef}
+                        type="file"
+                        accept=".csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        onChange={onChange}
+                        className="hidden"
+                    />
+                </div>
+
+                {file && (
+                    <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border p-3 text-sm">
+                        <div className="flex-1">
+                            <div className="font-medium">{file.name}</div>
+                            <div className="text-xs text-muted-foreground">{humanSize(file.size)}</div>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearFile} disabled={uploading}>
+                            <IconX className="h-4 w-4" />
+                        </Button>
+                    </div>
+                )}
+
+                <DialogFooter className="mt-2">
+                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={uploading}>
+                        Batal
+                    </Button>
+                    <Button onClick={upload} disabled={uploading || !file}>
+                        {uploading ? 'Mengunggah...' : 'Unggah & Proses'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+
+export default function MasterData({ terms, subjects, sections, gurus }: Props) {
     const [activeTab, setActiveTab] = useState('terms');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [editingItem, setEditingItem] = useState<Term | Subject | Section | null>(null);
+    const [editingItem, setEditingItem] = useState<Term | Subject | Section | undefined>(undefined);
     const [formData, setFormData] = useState<FormDataType>({});
     const [isDeleting, setIsDeleting] = useState(false);
 
+    // dialog import: 'subjects' | 'sections' | null
+    const [openImport, setOpenImport] = useState<null | 'subjects' | 'sections'>(null);
+
+    const downloadTemplate = (type: 'subjects' | 'sections') => {
+        window.open(`/admin/master-data/template-${type}`, '_blank');
+    };
+
     const handleSubmit = () => {
+        // method diikat ke union literal agar aman dipakai sebagai indeks ke router
+        const method: 'put' | 'post' = editingItem ? 'put' : 'post';
+
+        // di cabang true, TS sudah tahu editingItem bukan undefined dan punya id
         const endpoint = editingItem ? `/admin/master-data/${activeTab}/${editingItem.id}` : `/admin/master-data/${activeTab}`;
-        const method = editingItem ? 'put' : 'post';
 
         router[method](endpoint, formData, {
             onSuccess: () => {
                 toast.success(`${activeTab} berhasil ${editingItem ? 'diperbarui' : 'ditambahkan'}`);
                 setIsDialogOpen(false);
-                setEditingItem(null);
+                setEditingItem(undefined);
                 setFormData({});
             },
             onError: () => {
@@ -191,7 +365,7 @@ export default function MasterData({ terms, subjects, sections }: Props) {
     };
 
     const openDialog = (item?: Term | Subject | Section) => {
-        setEditingItem(item || null);
+        setEditingItem(item);
         if (item) {
             // Convert item to form data format
             const formDataObj: FormDataType = {};
@@ -304,12 +478,22 @@ export default function MasterData({ terms, subjects, sections }: Props) {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <CardTitle>Mata Pelajaran</CardTitle>
-                                        <CardDescription>Kelola mata pelajaran yang tersedia</CardDescription>
+                                        <CardDescription>Kelola data mata pelajaran</CardDescription>
                                     </div>
-                                    <Button onClick={() => openDialog()}>
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Tambah Mata Pelajaran
-                                    </Button>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" onClick={() => downloadTemplate('subjects')}>
+                                            <Download className="mr-2 h-4 w-4" />
+                                            Template
+                                        </Button>
+                                        <Button variant="outline" size="sm" onClick={() => setOpenImport('subjects')}>
+                                            <Upload className="mr-2 h-4 w-4" />
+                                            Import
+                                        </Button>
+                                        <Button onClick={() => openDialog()}>
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Tambah
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CardContent>
@@ -366,10 +550,20 @@ export default function MasterData({ terms, subjects, sections }: Props) {
                                         <CardTitle>Kelas/Section</CardTitle>
                                         <CardDescription>Kelola kelas dan jadwal pembelajaran</CardDescription>
                                     </div>
-                                    <Button onClick={() => openDialog()}>
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Tambah Kelas
-                                    </Button>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" onClick={() => downloadTemplate('sections')}>
+                                            <Download className="mr-2 h-4 w-4" />
+                                            Template
+                                        </Button>
+                                        <Button variant="outline" size="sm" onClick={() => setOpenImport('sections')}>
+                                            <Upload className="mr-2 h-4 w-4" />
+                                            Import
+                                        </Button>
+                                        <Button onClick={() => openDialog()}>
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Tambah Kelas
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CardContent>
@@ -432,6 +626,13 @@ export default function MasterData({ terms, subjects, sections }: Props) {
                                 {editingItem ? 'Edit' : 'Tambah'}{' '}
                                 {activeTab === 'terms' ? 'Term' : activeTab === 'subjects' ? 'Mata Pelajaran' : 'Kelas'}
                             </DialogTitle>
+                            <DialogDescription>
+                                {activeTab === 'terms'
+                                    ? 'Isi tahun ajaran dan semester. Tandai aktif bila ini term berjalan.'
+                                    : activeTab === 'subjects'
+                                      ? 'Isi data mata pelajaran.'
+                                      : 'Isi data kelas/section.'}
+                            </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                             {activeTab === 'terms' && (
@@ -445,7 +646,7 @@ export default function MasterData({ terms, subjects, sections }: Props) {
                                             value={(formData.tahun as string) || ''}
                                             onChange={(e) => setFormData({ ...formData, tahun: e.target.value })}
                                             className="col-span-3"
-                                            placeholder="2023/2024"
+                                            placeholder="2024/2025"
                                         />
                                     </div>
                                     <div className="grid grid-cols-4 items-center gap-4">
@@ -470,7 +671,7 @@ export default function MasterData({ terms, subjects, sections }: Props) {
                                             Status Aktif
                                         </Label>
                                         <Select
-                                            value={formData.aktif ? 'true' : 'false'}
+                                            value={String(Boolean(formData.aktif))}
                                             onValueChange={(value) => setFormData({ ...formData, aktif: value === 'true' })}
                                         >
                                             <SelectTrigger className="col-span-3">
@@ -548,6 +749,29 @@ export default function MasterData({ terms, subjects, sections }: Props) {
                                             </SelectContent>
                                         </Select>
                                     </div>
+
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="guru_id" className="text-right">
+                                            Guru Pengampu
+                                        </Label>
+                                        <Select
+                                            value={formData.guru_id?.toString() || ''}
+                                            onValueChange={(value) => setFormData({ ...formData, guru_id: parseInt(value) })}
+                                        >
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue placeholder="Pilih guru" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {gurus.map((g) => (
+                                                    <SelectItem key={g.id} value={g.id.toString()}>
+                                                        {g.name}
+                                                        {g.mapel_keahlian ? ` — ${g.mapel_keahlian}` : ''}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
                                     <div className="grid grid-cols-4 items-center gap-4">
                                         <Label htmlFor="term_id" className="text-right">
                                             Term
@@ -568,6 +792,7 @@ export default function MasterData({ terms, subjects, sections }: Props) {
                                             </SelectContent>
                                         </Select>
                                     </div>
+
                                     <div className="grid grid-cols-4 items-center gap-4">
                                         <Label htmlFor="kapasitas" className="text-right">
                                             Kapasitas
@@ -575,12 +800,12 @@ export default function MasterData({ terms, subjects, sections }: Props) {
                                         <Input
                                             id="kapasitas"
                                             type="number"
-                                            value={(formData.kapasitas as number) || ''}
+                                            value={(formData.kapasitas as number) ?? ''}
                                             onChange={(e) => setFormData({ ...formData, kapasitas: parseInt(e.target.value) || 0 })}
                                             className="col-span-3"
                                             placeholder="30"
-                                            min="1"
-                                            max="50"
+                                            min={1}
+                                            max={50}
                                         />
                                     </div>
                                 </>
@@ -596,6 +821,24 @@ export default function MasterData({ terms, subjects, sections }: Props) {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+
+                {/* Dialog Import Subjects */}
+                <ImportDialog
+                    open={openImport === 'subjects'}
+                    onOpenChange={(v) => setOpenImport(v ? 'subjects' : null)}
+                    uploadUrl="/admin/master-data/import-subjects"
+                    title="Import Mata Pelajaran"
+                    onDone={() => router.reload({ only: ['subjects'] })}
+                />
+
+                {/* Dialog Import Sections */}
+                <ImportDialog
+                    open={openImport === 'sections'}
+                    onOpenChange={(v) => setOpenImport(v ? 'sections' : null)}
+                    uploadUrl="/admin/master-data/import-sections"
+                    title="Import Kelas/Section"
+                    onDone={() => router.reload({ only: ['sections'] })}
+                />
             </div>
         </AppLayout>
     );

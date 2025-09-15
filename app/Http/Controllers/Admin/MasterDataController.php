@@ -11,6 +11,14 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithValidation;
+use Illuminate\Support\Collection;
 
 class MasterDataController extends Controller
 {
@@ -317,5 +325,164 @@ class MasterDataController extends Controller
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Gagal menghapus kelas.']);
         }
+    }
+
+    // Subject Import
+    public function importSubjects(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:2048'
+        ]);
+
+        try {
+            Excel::import(new SubjectImport, $request->file('file'));
+            return back()->with('status', 'Data mata pelajaran berhasil diimport.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Gagal mengimport data: ' . $e->getMessage()]);
+        }
+    }
+
+    public function exportSubjectsTemplate()
+    {
+        $headers = ['kode', 'nama', 'deskripsi'];
+        $data = [
+            ['MTK001', 'Matematika', 'Mata pelajaran matematika dasar'],
+            ['IPA001', 'IPA', 'Ilmu Pengetahuan Alam'],
+        ];
+
+        return Excel::download(new class($headers, $data) implements FromArray, WithHeadings {
+            private $headers;
+            private $data;
+
+            public function __construct($headers, $data) {
+                $this->headers = $headers;
+                $this->data = $data;
+            }
+
+            public function array(): array {
+                return $this->data;
+            }
+
+            public function headings(): array {
+                return $this->headers;
+            }
+        }, 'template_subjects.xlsx');
+    }
+
+    // Section Import
+    public function importSections(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:2048'
+        ]);
+
+        try {
+            Excel::import(new SectionImport, $request->file('file'));
+            return back()->with('status', 'Data kelas berhasil diimport.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Gagal mengimport data: ' . $e->getMessage()]);
+        }
+    }
+
+    public function exportSectionsTemplate()
+    {
+        $headers = ['subject_kode', 'guru_email', 'term_tahun', 'term_semester', 'kapasitas'];
+        $data = [
+            ['MTK001', 'guru1@sims.com', '2024/2025', 'ganjil', 30],
+            ['IPA001', 'guru2@sims.com', '2024/2025', 'ganjil', 25],
+        ];
+
+        return Excel::download(new class($headers, $data) implements FromArray, WithHeadings {
+            private $headers;
+            private $data;
+
+            public function __construct($headers, $data) {
+                $this->headers = $headers;
+                $this->data = $data;
+            }
+
+            public function array(): array {
+                return $this->data;
+            }
+
+            public function headings(): array {
+                return $this->headers;
+            }
+        }, 'template_sections.xlsx');
+    }
+}
+
+// Import Classes
+class SubjectImport implements ToModel, WithBatchInserts, WithChunkReading, WithValidation
+{
+    public function model(array $row)
+    {
+        return new Subject([
+            'kode' => strtoupper($row[0]),
+            'nama' => $row[1],
+            'deskripsi' => $row[2] ?? null,
+        ]);
+    }
+
+    public function batchSize(): int
+    {
+        return 100;
+    }
+
+    public function chunkSize(): int
+    {
+        return 100;
+    }
+
+    public function rules(): array
+    {
+        return [
+            '0' => 'required|string|max:10|unique:subjects,kode',
+            '1' => 'required|string|max:100',
+            '2' => 'nullable|string|max:500',
+        ];
+    }
+}
+
+class SectionImport implements ToModel, WithBatchInserts, WithChunkReading, WithValidation
+{
+    public function model(array $row)
+    {
+        $subject = Subject::where('kode', strtoupper($row[0]))->first();
+        $guru = User::where('email', $row[1])->first();
+        $term = Term::where('tahun', $row[2])->where('semester', $row[3])->first();
+
+        if (!$subject || !$guru || !$term) {
+            throw new \Exception('Data referensi tidak ditemukan untuk baris: ' . implode(', ', $row));
+        }
+
+        return new Section([
+            'subject_id' => $subject->id,
+            'guru_id' => $guru->id,
+            'term_id' => $term->id,
+            'kapasitas' => $row[4] ?? 30,
+            'jadwal_json' => [],
+        ]);
+    }
+
+    public function batchSize(): int
+    {
+        return 50;
+    }
+
+    public function chunkSize(): int
+    {
+        return 50;
+    }
+
+    public function rules(): array
+    {
+        return [
+            '0' => 'required|string|exists:subjects,kode',
+            '1' => 'required|email|exists:users,email',
+            '2' => 'required|string',
+            '3' => 'required|in:ganjil,genap',
+            '4' => 'nullable|integer|min:1|max:50',
+        ];
     }
 }

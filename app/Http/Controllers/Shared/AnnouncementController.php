@@ -21,12 +21,14 @@ class AnnouncementController extends Controller
         $user = Auth::user();
         $userRole = $user->roles->first()->name ?? 'siswa';
         
-        $query = Announcement::published()
-            ->with(['creator', 'scopeSection.subject'])
+        $query = Announcement::with(['creator', 'scopeSection.subject'])
             ->orderBy('published_at', 'desc');
-
+    
         // Filter based on user role and access
         if ($userRole === 'siswa') {
+            // Apply published filter for students
+            $query->published();
+            
             $siswa = $user->siswaProfile;
             if ($siswa) {
                 $sectionIds = $siswa->sections()->pluck('sections.id');
@@ -45,6 +47,9 @@ class AnnouncementController extends Controller
                 $query->forRole('siswa');
             }
         } elseif ($userRole === 'guru') {
+            // Apply published filter for teachers
+            $query->published();
+            
             $guru = $user->guruProfile;
             if ($guru) {
                 $sectionIds = Section::where('guru_id', $user->id)->pluck('id');
@@ -62,24 +67,24 @@ class AnnouncementController extends Controller
             } else {
                 $query->forRole('guru');
             }
-        } else {
-            // Admin can see all announcements
         }
-
+        // Admin can see ALL announcements (no additional filtering)
+        // Remove the published() filter for admin to see all announcements
+    
         // Filter by scope type if requested
-        if ($request->has('scope_type')) {
+        if ($request->has('scope_type') && $request->scope_type !== '') {
             $query->where('scope_type', $request->scope_type);
         }
-
+    
         $announcements = $query->paginate(10)->withQueryString();
-
+    
         $pageComponent = match($userRole) {
             'siswa' => 'Siswa/Announcements/Index',
             'guru' => 'Guru/Announcements/Index',
             'admin' => 'Admin/Announcements/Index',
             default => 'Shared/Announcements/Index'
         };
-
+    
         return Inertia::render($pageComponent, [
             'announcements' => $announcements,
             'userRole' => $userRole,
@@ -161,7 +166,7 @@ class AnnouncementController extends Controller
         if (!in_array($userRole, ['guru', 'admin'])) {
             abort(403, 'Anda tidak memiliki akses untuk membuat pengumuman.');
         }
-
+    
         $rules = [
             'title' => 'required|string|max:200',
             'content' => 'required|string',
@@ -170,7 +175,7 @@ class AnnouncementController extends Controller
             'role_name' => 'nullable|in:siswa,guru,admin',
             'published_at' => 'nullable|date|after_or_equal:now',
         ];
-
+    
         // Additional validation based on scope_type
         if ($request->input('scope_type') === 'section') {
             $rules['scope_id'] = 'required|exists:sections,id';
@@ -178,15 +183,15 @@ class AnnouncementController extends Controller
         if ($request->input('scope_type') === 'role') {
             $rules['role_name'] = 'required|in:siswa,guru,admin';
         }
-
+    
         $validator = Validator::make($request->all(), $rules);
-
+    
         if ($validator->fails()) {
             return redirect()->back()
                 ->withErrors($validator)
                 ->withInput();
         }
-
+    
         // Additional authorization checks
         if ($userRole === 'guru') {
             // Guru can only create announcements for their sections or role-based
@@ -203,29 +208,40 @@ class AnnouncementController extends Controller
                     ->withInput();
             }
         }
-
+    
         try {
+            // Fix: Properly handle null values based on scope_type
+            $scopeId = null;
+            $roleName = null;
+            
+            if ($request->input('scope_type') === 'section') {
+                $scopeId = $request->input('scope_id');
+            } elseif ($request->input('scope_type') === 'role') {
+                $roleName = $request->input('role_name');
+            }
+            // For global scope_type, both remain null
+    
             $announcementData = [
                 'title' => $request->input('title'),
                 'content' => $request->input('content'),
                 'scope_type' => $request->input('scope_type'),
-                'scope_id' => $request->input('scope_id'),
-                'role_name' => $request->input('role_name'),
+                'scope_id' => $scopeId,
+                'role_name' => $roleName,
                 'published_at' => $request->input('published_at') ? Carbon::parse($request->input('published_at')) : now(),
                 'created_by' => $user->id,
             ];
-
+    
             Announcement::create($announcementData);
-
+    
             $redirectRoute = match($userRole) {
                 'guru' => 'guru.announcements.index',
                 'admin' => 'admin.announcements.index',
                 default => 'announcements.index'
             };
-
+    
             return redirect()->route($redirectRoute)
                 ->with('success', 'Pengumuman berhasil dibuat.');
-
+    
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Gagal membuat pengumuman: ' . $e->getMessage())

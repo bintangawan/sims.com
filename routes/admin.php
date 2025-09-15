@@ -29,6 +29,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::put('/master-data/sections/{section}', [MasterDataController::class, 'updateSection'])->name('master-data.update-section');
     Route::delete('/master-data/sections/{section}', [MasterDataController::class, 'destroySection'])->name('master-data.destroy-section');
     
+    // Master Data Import Routes
+    Route::post('/master-data/import-subjects', [MasterDataController::class, 'importSubjects'])->name('master-data.import-subjects');
+    Route::get('/master-data/template-subjects', [MasterDataController::class, 'exportSubjectsTemplate'])->name('master-data.template-subjects');
+    Route::post('/master-data/import-sections', [MasterDataController::class, 'importSections'])->name('master-data.import-sections');
+    Route::get('/master-data/template-sections', [MasterDataController::class, 'exportSectionsTemplate'])->name('master-data.template-sections');
+    
     // Users Management
     Route::post('users/import', [UserController::class, 'import'])->name('users.import');
     Route::get('users/export', [UserController::class, 'export'])->name('users.export');

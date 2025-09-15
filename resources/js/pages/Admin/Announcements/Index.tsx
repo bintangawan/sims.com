@@ -10,8 +10,10 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
@@ -19,7 +21,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Edit, Eye, Filter, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 
 interface Creator {
     id: number;
@@ -70,9 +72,74 @@ interface Filters {
 
 interface Props {
     announcements: PaginatedData;
-    userRole: string; // ← kita pakai
+    userRole: string; // dipakai di header
     filters: Filters;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   ConfirmDeleteDialog — sama gaya dengan Users/Index.tsx (ketik HAPUS + centang)
+   ──────────────────────────────────────────────────────────────────────────── */
+type ConfirmDeleteDialogProps = {
+    trigger: ReactNode;
+    title: string;
+    description?: string;
+    confirmWord?: string; // default: "HAPUS"
+    onConfirm: () => void;
+    isLoading?: boolean;
+};
+
+function ConfirmDeleteDialog({
+    trigger,
+    title,
+    description = 'Tindakan ini permanen dan tidak dapat dibatalkan.',
+    confirmWord = 'HAPUS',
+    onConfirm,
+    isLoading,
+}: ConfirmDeleteDialogProps) {
+    const [typed, setTyped] = useState('');
+    const [agreed, setAgreed] = useState(false);
+
+    const canSubmit = typed.trim().toUpperCase() === confirmWord && agreed && !isLoading;
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+
+            <AlertDialogContent className="rounded-2xl border shadow-xl sm:max-w-md">
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="text-red-600">{title}</AlertDialogTitle>
+                    <AlertDialogDescription className="text-sm">{description}</AlertDialogDescription>
+                </AlertDialogHeader>
+
+                <div className="space-y-3">
+                    <div className="text-xs text-muted-foreground">
+                        Ketik <span className="font-semibold text-foreground">{confirmWord}</span> untuk konfirmasi:
+                    </div>
+                    <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={confirmWord} />
+
+                    <label className="flex items-center gap-2 text-sm">
+                        <Checkbox checked={agreed} onCheckedChange={(v) => setAgreed(Boolean(v))} />
+                        <span>Saya paham data yang dihapus tidak dapat dikembalikan.</span>
+                    </label>
+                </div>
+
+                <AlertDialogFooter className="mt-4">
+                    <AlertDialogCancel className={`${buttonVariants({ variant: 'outline' })} rounded-xl`}>Batal</AlertDialogCancel>
+                    <AlertDialogAction
+                        disabled={!canSubmit}
+                        onClick={onConfirm}
+                        className={`${buttonVariants({ variant: 'destructive' })} gap-2 rounded-xl`}
+                    >
+                        <Trash2 className="h-4 w-4" />
+                        {isLoading ? 'Menghapus...' : 'Hapus'}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
 
 const getScopeTypeLabel = (scopeType: string) => {
     switch (scopeType) {
@@ -117,6 +184,7 @@ const getScopeDescription = (announcement: Announcement) => {
 
 export default function Index({ announcements, userRole, filters }: Props) {
     const [scopeTypeFilter, setScopeTypeFilter] = useState(filters.scope_type || '');
+    const [deletingId, setDeletingId] = useState<number | null>(null);
 
     const handleFilter = () => {
         const params: Record<string, string> = {};
@@ -134,7 +202,10 @@ export default function Index({ announcements, userRole, filters }: Props) {
     };
 
     const handleDelete = (id: number) => {
-        router.delete(route('admin.announcements.destroy', id));
+        setDeletingId(id);
+        router.delete(route('admin.announcements.destroy', id), {
+            onFinish: () => setDeletingId(null),
+        });
     };
 
     return (
@@ -146,7 +217,6 @@ export default function Index({ announcements, userRole, filters }: Props) {
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">Kelola Pengumuman</h1>
                         <p className="text-gray-600">Kelola pengumuman untuk siswa, guru, dan admin</p>
-                        {/* gunakan userRole supaya tidak unused */}
                         <p className="mt-1 text-xs text-muted-foreground">
                             Peran Anda: <span className="font-medium">{userRole}</span>
                         </p>
@@ -254,31 +324,20 @@ export default function Index({ announcements, userRole, filters }: Props) {
                                                             <Edit className="h-4 w-4" />
                                                         </Button>
                                                     </Link>
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
+
+                                                    {/* Dialog hapus — versi ConfirmDeleteDialog */}
+                                                    <ConfirmDeleteDialog
+                                                        trigger={
                                                             <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>Hapus Pengumuman</AlertDialogTitle>
-                                                                <AlertDialogDescription>
-                                                                    Apakah Anda yakin ingin menghapus pengumuman "{announcement.title}"? Tindakan ini
-                                                                    tidak dapat dibatalkan.
-                                                                </AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>Batal</AlertDialogCancel>
-                                                                <AlertDialogAction
-                                                                    onClick={() => handleDelete(announcement.id)}
-                                                                    className="bg-red-600 hover:bg-red-700"
-                                                                >
-                                                                    Hapus
-                                                                </AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
+                                                        }
+                                                        title={`Hapus Pengumuman "${announcement.title}"?`}
+                                                        description="Apakah Anda yakin ingin menghapus pengumuman ini? Tindakan ini tidak dapat dibatalkan."
+                                                        confirmWord="HAPUS"
+                                                        onConfirm={() => handleDelete(announcement.id)}
+                                                        isLoading={deletingId === announcement.id}
+                                                    />
                                                 </div>
                                             </TableCell>
                                         </TableRow>
