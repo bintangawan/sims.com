@@ -19,12 +19,16 @@ Route::middleware(['auth', 'role:guru'])->prefix('guru')->name('guru.')->group(f
     Route::get('/kelas/{section}', [KelasController::class, 'show'])->name('kelas.show');
     Route::get('/kelas/{section}/students', [KelasController::class, 'students'])->name('kelas.students');
     Route::get('/kelas/{section}/export', [KelasController::class, 'exportStudents'])->name('kelas.export');
+    Route::get('/kelas/{section}/create', [KelasController::class, 'create'])->name('kelas.create');
+    Route::post('/kelas/{section}/store', [KelasController::class, 'store'])->name('kelas.store');
     
-    // Materi
+    // Materi - Fixed routes with proper section context
     Route::get('/kelas/{section}/materi', [MateriController::class, 'index'])->name('materi.index');
-    Route::get('/materi/create', [MateriController::class, 'create'])->name('materi.create');
+    Route::get('/kelas/{section}/materi/create', [MateriController::class, 'create'])->name('materi.create');
     Route::post('/materi', [MateriController::class, 'store'])->name('materi.store');
     Route::get('/materi/{material}', [MateriController::class, 'show'])->name('materi.show');
+    Route::get('/materi/{material}/download', [MateriController::class, 'download'])->name('materi.download');
+    Route::get('/materi/{material}/preview', [MateriController::class, 'preview'])->name('materi.preview');
     Route::get('/materi/{material}/edit', [MateriController::class, 'edit'])->name('materi.edit');
     Route::put('/materi/{material}', [MateriController::class, 'update'])->name('materi.update');
     Route::delete('/materi/{material}', [MateriController::class, 'destroy'])->name('materi.destroy');

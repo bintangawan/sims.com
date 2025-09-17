@@ -8,6 +8,9 @@ use App\Models\Section;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Illuminate\Support\Facades\File; 
 use Inertia\Inertia;
 
 class MateriController extends Controller
@@ -17,7 +20,9 @@ class MateriController extends Controller
      */
     public function index(Section $section)
     {
-        $this->authorize('view', $section);
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $materials = Material::where('section_id', $section->id)
             ->orderBy('created_at', 'desc')
@@ -48,7 +53,9 @@ class MateriController extends Controller
         $sectionId = $request->query('section_id');
         $section = Section::with('subject')->findOrFail($sectionId);
         
-        $this->authorize('view', $section);
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
 
         return Inertia::render('Guru/Materi/Create', [
             'section' => $section,
@@ -69,7 +76,9 @@ class MateriController extends Controller
         ]);
 
         $section = Section::findOrFail($request->section_id);
-        $this->authorize('view', $section);
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
 
         $filePath = null;
         if ($request->hasFile('file')) {
@@ -93,7 +102,9 @@ class MateriController extends Controller
      */
     public function show(Material $material)
     {
-        $this->authorize('view', $material->section);
+        if (!Gate::allows('access-section', $material->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         return Inertia::render('Guru/Materi/Show', [
             'material' => $material->load('section.subject'),
@@ -105,7 +116,9 @@ class MateriController extends Controller
      */
     public function edit(Material $material)
     {
-        $this->authorize('view', $material->section);
+        if (!Gate::allows('access-section', $material->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         return Inertia::render('Guru/Materi/Edit', [
             'material' => $material->load('section.subject'),
@@ -117,7 +130,9 @@ class MateriController extends Controller
      */
     public function update(Request $request, Material $material)
     {
-        $this->authorize('view', $material->section);
+        if (!Gate::allows('access-section', $material->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $request->validate([
             'judul' => 'required|string|max:200',
@@ -159,7 +174,9 @@ class MateriController extends Controller
      */
     public function destroy(Material $material)
     {
-        $this->authorize('view', $material->section);
+        if (!Gate::allows('access-section', $material->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $section = $material->section;
         
@@ -171,5 +188,46 @@ class MateriController extends Controller
 
         return redirect()->route('guru.materi.index', $section)
             ->with('success', 'Materi berhasil dihapus.');
+    }
+
+    /**
+     * Download the specified material file.
+     */
+    public function download(Material $material): BinaryFileResponse
+{
+    if (!Gate::allows('access-section', $material->section)) {
+        abort(403, 'Unauthorized access to this section.');
+    }
+
+    if (!$material->file_path || !Storage::disk('public')->exists($material->file_path)) {
+        abort(404, 'File not found.');
+    }
+
+    $fullPath = Storage::disk('public')->path($material->file_path);
+    $filename = $material->judul.'.'.pathinfo($material->file_path, PATHINFO_EXTENSION);
+
+    return response()->download($fullPath, $filename);
+}
+
+    /**
+     * Preview the specified material file.
+     */
+    public function preview(Material $material): BinaryFileResponse   // ⬅️ optional: beri tipe
+    {
+        if (!Gate::allows('access-section', $material->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
+
+        if (!$material->file_path || !Storage::disk('public')->exists($material->file_path)) {
+            abort(404, 'File not found.');
+        }
+
+        $fullPath  = Storage::disk('public')->path($material->file_path);
+        $mimeType  = File::mimeType($fullPath) ?: 'application/octet-stream';  // ⬅️ ganti cara ambil MIME
+
+        return response()->file($fullPath, [
+            'Content-Type'        => $mimeType,
+            'Content-Disposition' => 'inline',
+        ]);
     }
 }

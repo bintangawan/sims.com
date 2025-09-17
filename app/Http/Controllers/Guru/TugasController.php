@@ -7,9 +7,9 @@ use App\Models\Assignment;
 use App\Models\Section;
 use App\Models\Submission;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Gate;
 
 class TugasController extends Controller
 {
@@ -18,8 +18,10 @@ class TugasController extends Controller
      */
     public function index(Section $section)
     {
-        $this->authorize('view', $section);
-        
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
+
         $assignments = Assignment::where('section_id', $section->id)
             ->withCount('submissions')
             ->orderBy('created_at', 'desc')
@@ -52,8 +54,10 @@ class TugasController extends Controller
     {
         $sectionId = $request->query('section_id');
         $section = Section::with('subject')->findOrFail($sectionId);
-        
-        $this->authorize('view', $section);
+
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
 
         return Inertia::render('Guru/Tugas/Create', [
             'section' => $section,
@@ -76,7 +80,9 @@ class TugasController extends Controller
         ]);
 
         $section = Section::findOrFail($request->section_id);
-        $this->authorize('view', $section);
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
 
         $assignment = Assignment::create([
             'section_id' => $request->section_id,
@@ -97,10 +103,12 @@ class TugasController extends Controller
      */
     public function show(Assignment $assignment)
     {
-        $this->authorize('view', $assignment->section);
-        
+        if (!Gate::allows('access-section', $assignment->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
+
         $assignment->load(['section.subject', 'submissions.user.siswaProfile']);
-        
+
         return Inertia::render('Guru/Tugas/Show', [
             'assignment' => [
                 'id' => $assignment->id,
@@ -111,7 +119,7 @@ class TugasController extends Controller
                 'rubrik_json' => $assignment->rubrik_json,
                 'published_at' => $assignment->published_at,
                 'section' => $assignment->section,
-                'submissions' => $assignment->submissions->map(function ($submission) {
+                'submissions' => $assignment->submissions->map(function ($submission) use ($assignment) {
                     return [
                         'id' => $submission->id,
                         'user' => [
@@ -135,8 +143,10 @@ class TugasController extends Controller
      */
     public function edit(Assignment $assignment)
     {
-        $this->authorize('view', $assignment->section);
-        
+        if (!Gate::allows('access-section', $assignment->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
+
         return Inertia::render('Guru/Tugas/Edit', [
             'assignment' => $assignment->load('section.subject'),
         ]);
@@ -147,8 +157,10 @@ class TugasController extends Controller
      */
     public function update(Request $request, Assignment $assignment)
     {
-        $this->authorize('view', $assignment->section);
-        
+        if (!Gate::allows('access-section', $assignment->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
+
         $request->validate([
             'judul' => 'required|string|max:200',
             'deskripsi' => 'required|string',
@@ -174,14 +186,16 @@ class TugasController extends Controller
      */
     public function publish(Assignment $assignment)
     {
-        $this->authorize('view', $assignment->section);
-        
+        if (!Gate::allows('access-section', $assignment->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
+
         $assignment->update([
             'published_at' => $assignment->published_at ? null : now(),
         ]);
 
         $status = $assignment->published_at ? 'dipublikasikan' : 'disembunyikan';
-        
+
         return redirect()->back()
             ->with('success', "Tugas berhasil {$status}.");
     }
@@ -191,8 +205,10 @@ class TugasController extends Controller
      */
     public function destroy(Assignment $assignment)
     {
-        $this->authorize('view', $assignment->section);
-        
+        if (!Gate::allows('access-section', $assignment->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
+
         $section = $assignment->section;
         $assignment->delete();
 

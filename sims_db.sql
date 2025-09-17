@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Sep 08, 2025 at 03:33 PM
+-- Generation Time: Sep 15, 2025 at 01:11 PM
 -- Server version: 8.0.30
 -- PHP Version: 8.2.26
 
@@ -39,6 +39,15 @@ CREATE TABLE `announcements` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `announcements`
+--
+
+INSERT INTO `announcements` (`id`, `title`, `content`, `scope_type`, `scope_id`, `role_name`, `published_at`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'SPP', 'Bayar SPP Kalian ya Anak-Anak', 'global', NULL, NULL, '2025-09-15 09:45:00', 1, '2025-09-15 02:45:31', '2025-09-15 02:45:31'),
+(2, 'Boi', 'jajan boi', 'role', NULL, 'siswa', '2025-09-15 10:05:00', 1, '2025-09-15 03:05:21', '2025-09-15 03:05:21'),
+(3, 'Jajanan', 'jajanan di meja guru yaaa', 'role', NULL, 'guru', '2025-09-16 00:10:00', 1, '2025-09-15 03:10:51', '2025-09-15 03:23:46');
 
 -- --------------------------------------------------------
 
@@ -101,6 +110,14 @@ CREATE TABLE `cache` (
   `value` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL,
   `expiration` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `cache`
+--
+
+INSERT INTO `cache` (`key`, `value`, `expiration`) VALUES
+('laravel_cache_356a192b7913b04c54574d18c28d46e6395428ab', 'i:1;', 1757644335),
+('laravel_cache_356a192b7913b04c54574d18c28d46e6395428ab:timer', 'i:1757644335;', 1757644335);
 
 -- --------------------------------------------------------
 
@@ -209,6 +226,16 @@ CREATE TABLE `guru_profiles` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `guru_profiles`
+--
+
+INSERT INTO `guru_profiles` (`id`, `user_id`, `nidn`, `nuptk`, `mapel_keahlian`, `telepon`, `created_at`, `updated_at`) VALUES
+(1, 2, '1234567890', NULL, 'Matematika', '081234567890', '2025-09-10 19:23:59', '2025-09-10 19:23:59'),
+(2, 3, '1234567891', NULL, 'Bahasa Indonesia', '081234567891', '2025-09-10 19:24:00', '2025-09-10 19:24:00'),
+(3, 4, '1234567892', NULL, 'IPA', '081234567892', '2025-09-10 19:24:00', '2025-09-10 19:24:00'),
+(4, 12, '088222', '288393', 'Matematika, IPA, IPS', '089922', '2025-09-14 01:32:38', '2025-09-14 01:32:38');
+
 -- --------------------------------------------------------
 
 --
@@ -283,22 +310,22 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (3, '0001_01_01_000002_create_jobs_table', 1),
 (4, '2025_09_08_100144_create_permission_tables', 1),
 (5, '2025_09_08_100158_create_notifications_table', 1),
-(6, '2025_09_08_125428_create_siswa_profiles_table', 2),
-(7, '2025_09_08_125429_create_guru_profiles_table', 2),
-(8, '2025_09_08_125430_create_terms_table', 2),
-(9, '2025_09_08_125431_create_subjects_table', 3),
-(10, '2025_09_08_125431_create_sections_table', 4),
-(11, '2025_09_08_125432_create_section_students_table', 4),
-(12, '2025_09_08_125433_create_assignments_table', 4),
-(13, '2025_09_08_125433_create_materials_table', 4),
-(14, '2025_09_08_125434_create_submissions_table', 4),
-(15, '2025_09_08_125435_create_attendances_table', 4),
-(16, '2025_09_08_125436_create_attendance_details_table', 4),
-(17, '2025_09_08_125436_create_grades_table', 4),
-(18, '2025_09_08_125437_create_announcements_table', 4),
-(19, '2025_09_08_125438_create_chat_sessions_table', 5),
-(20, '2025_09_08_125438_create_chat_messages_table', 6),
-(21, '2025_09_08_125439_create_chat_configs_table', 6);
+(6, '2025_09_08_125428_create_siswa_profiles_table', 1),
+(7, '2025_09_08_125429_create_guru_profiles_table', 1),
+(8, '2025_09_08_125430_create_terms_table', 1),
+(9, '2025_09_08_125431_create_subjects_table', 1),
+(10, '2025_09_08_125432_create_sections_table', 1),
+(11, '2025_09_08_125433_create_section_students_table', 1),
+(12, '2025_09_08_125434_create_materials_table', 1),
+(13, '2025_09_08_125435_create_assignments_table', 1),
+(14, '2025_09_08_125436_create_submissions_table', 1),
+(15, '2025_09_08_125437_create_attendances_table', 1),
+(16, '2025_09_08_125438_create_attendance_details_table', 1),
+(17, '2025_09_08_125439_create_grades_table', 1),
+(18, '2025_09_08_125440_create_announcements_table', 1),
+(19, '2025_09_08_125441_create_chat_sessions_table', 1),
+(20, '2025_09_08_125442_create_chat_messages_table', 1),
+(21, '2025_09_08_125443_create_chat_configs_table', 1);
 
 -- --------------------------------------------------------
 
@@ -323,6 +350,26 @@ CREATE TABLE `model_has_roles` (
   `model_type` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `model_id` bigint UNSIGNED NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `model_has_roles`
+--
+
+INSERT INTO `model_has_roles` (`role_id`, `model_type`, `model_id`) VALUES
+(1, 'App\\Models\\User', 1),
+(2, 'App\\Models\\User', 2),
+(2, 'App\\Models\\User', 3),
+(2, 'App\\Models\\User', 4),
+(3, 'App\\Models\\User', 5),
+(3, 'App\\Models\\User', 6),
+(3, 'App\\Models\\User', 7),
+(3, 'App\\Models\\User', 8),
+(3, 'App\\Models\\User', 11),
+(2, 'App\\Models\\User', 12),
+(3, 'App\\Models\\User', 14),
+(3, 'App\\Models\\User', 15),
+(3, 'App\\Models\\User', 16),
+(3, 'App\\Models\\User', 17);
 
 -- --------------------------------------------------------
 
@@ -367,6 +414,48 @@ CREATE TABLE `permissions` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `permissions`
+--
+
+INSERT INTO `permissions` (`id`, `name`, `guard_name`, `created_at`, `updated_at`) VALUES
+(1, 'view-dashboard', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(2, 'manage-master-data', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(3, 'manage-terms', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(4, 'manage-subjects', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(5, 'manage-users', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(6, 'assign-roles', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(7, 'import-users', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(8, 'view-sections', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(9, 'manage-sections', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(10, 'view-section-students', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(11, 'manage-section-students', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(12, 'view-materials', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(13, 'create-materials', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(14, 'edit-materials', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(15, 'delete-materials', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(16, 'view-assignments', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(17, 'create-assignments', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(18, 'edit-assignments', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(19, 'delete-assignments', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(20, 'submit-assignments', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(21, 'view-grades', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(22, 'manage-grades', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(23, 'view-own-grades', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(24, 'view-attendance', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(25, 'manage-attendance', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(26, 'view-own-attendance', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(27, 'view-announcements', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(28, 'create-announcements', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(29, 'edit-announcements', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(30, 'delete-announcements', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(31, 'view-reports', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(32, 'export-reports', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(33, 'use-chatbot', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(34, 'manage-chatbot-config', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(35, 'view-schedule', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(36, 'manage-schedule', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58');
+
 -- --------------------------------------------------------
 
 --
@@ -381,6 +470,15 @@ CREATE TABLE `roles` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `roles`
+--
+
+INSERT INTO `roles` (`id`, `name`, `guard_name`, `created_at`, `updated_at`) VALUES
+(1, 'admin', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(2, 'guru', 'web', '2025-09-10 19:23:58', '2025-09-10 19:23:58'),
+(3, 'siswa', 'web', '2025-09-10 19:23:59', '2025-09-10 19:23:59');
+
 -- --------------------------------------------------------
 
 --
@@ -391,6 +489,82 @@ CREATE TABLE `role_has_permissions` (
   `permission_id` bigint UNSIGNED NOT NULL,
   `role_id` bigint UNSIGNED NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `role_has_permissions`
+--
+
+INSERT INTO `role_has_permissions` (`permission_id`, `role_id`) VALUES
+(1, 1),
+(2, 1),
+(3, 1),
+(4, 1),
+(5, 1),
+(6, 1),
+(7, 1),
+(8, 1),
+(9, 1),
+(10, 1),
+(11, 1),
+(12, 1),
+(13, 1),
+(14, 1),
+(15, 1),
+(16, 1),
+(17, 1),
+(18, 1),
+(19, 1),
+(20, 1),
+(21, 1),
+(22, 1),
+(23, 1),
+(24, 1),
+(25, 1),
+(26, 1),
+(27, 1),
+(28, 1),
+(29, 1),
+(30, 1),
+(31, 1),
+(32, 1),
+(33, 1),
+(34, 1),
+(35, 1),
+(36, 1),
+(1, 2),
+(8, 2),
+(9, 2),
+(10, 2),
+(11, 2),
+(12, 2),
+(13, 2),
+(14, 2),
+(15, 2),
+(16, 2),
+(17, 2),
+(18, 2),
+(19, 2),
+(21, 2),
+(22, 2),
+(24, 2),
+(25, 2),
+(27, 2),
+(28, 2),
+(29, 2),
+(30, 2),
+(33, 2),
+(35, 2),
+(1, 3),
+(8, 3),
+(10, 3),
+(12, 3),
+(16, 3),
+(20, 3),
+(23, 3),
+(26, 3),
+(27, 3),
+(33, 3),
+(35, 3);
 
 -- --------------------------------------------------------
 
@@ -409,6 +583,16 @@ CREATE TABLE `sections` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `sections`
+--
+
+INSERT INTO `sections` (`id`, `subject_id`, `guru_id`, `term_id`, `kapasitas`, `jadwal_json`, `created_at`, `updated_at`) VALUES
+(1, 1, 12, 1, 30, '[{\"hari\": \"senin\", \"ruangan\": \"R-145\", \"jam_mulai\": \"08:30\", \"jam_selesai\": \"09:30\"}, {\"hari\": \"senin\", \"ruangan\": \"R-144\", \"jam_mulai\": \"12:30\", \"jam_selesai\": \"13:30\"}]', '2025-09-14 12:19:40', '2025-09-14 11:20:00'),
+(2, 4, 2, 1, 30, '[{\"hari\": \"senin\", \"ruangan\": \"R-140\", \"jam_mulai\": \"15:30\", \"jam_selesai\": \"16:30\"}, {\"hari\": \"senin\", \"ruangan\": \"R-145\", \"jam_mulai\": \"12:30\", \"jam_selesai\": \"13:30\"}]', '2025-09-14 11:29:12', '2025-09-14 11:42:06'),
+(3, 5, 3, 1, 20, '[]', '2025-09-15 02:28:40', '2025-09-15 02:28:40'),
+(4, 4, 12, 1, 10, '[]', '2025-09-15 05:49:02', '2025-09-15 05:49:02');
+
 -- --------------------------------------------------------
 
 --
@@ -422,6 +606,13 @@ CREATE TABLE `section_students` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `section_students`
+--
+
+INSERT INTO `section_students` (`id`, `section_id`, `user_id`, `created_at`, `updated_at`) VALUES
+(1, 1, 11, '2025-09-14 12:46:22', NULL);
 
 -- --------------------------------------------------------
 
@@ -437,6 +628,14 @@ CREATE TABLE `sessions` (
   `payload` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
   `last_activity` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `sessions`
+--
+
+INSERT INTO `sessions` (`id`, `user_id`, `ip_address`, `user_agent`, `payload`, `last_activity`) VALUES
+('iEB36sQArOMQsVF7frsYkFZ1SvCikej5pkne4FAi', 1, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', 'YTo0OntzOjY6Il90b2tlbiI7czo0MDoiT0NGdzBldjdsdTlGU1RBTm9WT29NQ2NvY3kyeGtFSzlEZW1xTzlEZyI7czo5OiJfcHJldmlvdXMiO2E6MTp7czozOiJ1cmwiO3M6Mjc6Imh0dHA6Ly9sb2NhbGhvc3Q6ODAwMC9sb2dpbiI7fXM6NjoiX2ZsYXNoIjthOjI6e3M6Mzoib2xkIjthOjA6e31zOjM6Im5ldyI7YTowOnt9fXM6NTA6ImxvZ2luX3dlYl81OWJhMzZhZGRjMmIyZjk0MDE1ODBmMDE0YzdmNThlYTRlMzA5ODlkIjtpOjE7fQ==', 1757941784),
+('xeUChfBpQtriMGwT7WpnEYEMT2IbZ9jivsrwWYrH', 3, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0', 'YTo0OntzOjY6Il90b2tlbiI7czo0MDoiRUEwcHI4UmhueEhacFlzMnk5MUtzdnAyTVR3cVhnYWtGdm5hbXdCSCI7czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319czo5OiJfcHJldmlvdXMiO2E6MTp7czozOiJ1cmwiO3M6MzY6Imh0dHA6Ly8xMjcuMC4wLjE6ODAwMC9ndXJ1L2Rhc2hib2FyZCI7fXM6NTA6ImxvZ2luX3dlYl81OWJhMzZhZGRjMmIyZjk0MDE1ODBmMDE0YzdmNThlYTRlMzA5ODlkIjtpOjM7fQ==', 1757941734);
 
 -- --------------------------------------------------------
 
@@ -455,6 +654,21 @@ CREATE TABLE `siswa_profiles` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `siswa_profiles`
+--
+
+INSERT INTO `siswa_profiles` (`id`, `user_id`, `nis`, `angkatan`, `kelas`, `wali_kelas_id`, `created_at`, `updated_at`) VALUES
+(1, 5, '2024001', 2024, 'X-2', NULL, '2025-09-10 19:24:00', '2025-09-14 01:22:00'),
+(2, 6, '2024002', 2024, 'X-1', NULL, '2025-09-10 19:24:00', '2025-09-10 19:24:00'),
+(3, 7, '2024003', 2024, 'X-2', NULL, '2025-09-10 19:24:01', '2025-09-10 19:24:01'),
+(4, 8, '2024004', 2024, 'X-2', NULL, '2025-09-10 19:24:01', '2025-09-10 19:24:01'),
+(5, 11, 'SIS000011', 2022, 'X IPA 3', 2, '2025-09-14 01:28:56', '2025-09-14 01:28:56'),
+(6, 14, 'SIS001', 2024, 'XII RPL 1', NULL, '2025-09-14 02:54:58', '2025-09-14 02:54:58'),
+(7, 15, 'SIS002', 2024, 'XII RPL 1', NULL, '2025-09-14 02:54:59', '2025-09-14 02:54:59'),
+(8, 16, 'SIS003', 2024, 'XII RPL 2', NULL, '2025-09-14 02:54:59', '2025-09-14 02:54:59'),
+(9, 17, 'SIS004', 2024, 'XII RPL 2', NULL, '2025-09-14 02:54:59', '2025-09-14 02:54:59');
+
 -- --------------------------------------------------------
 
 --
@@ -469,6 +683,17 @@ CREATE TABLE `subjects` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `subjects`
+--
+
+INSERT INTO `subjects` (`id`, `kode`, `nama`, `deskripsi`, `created_at`, `updated_at`) VALUES
+(1, 'MTK', 'Matematika', 'Mata pelajaran Matematika', '2025-09-10 19:23:59', '2025-09-10 19:23:59'),
+(2, 'IPA', 'Ilmu Pengetahuan Alam', 'Mata pelajaran IPA', '2025-09-10 19:23:59', '2025-09-10 19:23:59'),
+(3, 'IPS', 'Ilmu Pengetahuan Sosial', 'Mata pelajaran IPS', '2025-09-10 19:23:59', '2025-09-10 19:23:59'),
+(4, 'BIN', 'Bahasa Indonesia', 'Mata pelajaran Bahasa Indonesia', '2025-09-10 19:23:59', '2025-09-10 19:23:59'),
+(5, 'ENG', 'Bahasa Inggris', 'Mata pelajaran Bahasa Inggris', '2025-09-10 19:23:59', '2025-09-10 19:23:59');
 
 -- --------------------------------------------------------
 
@@ -505,6 +730,13 @@ CREATE TABLE `terms` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `terms`
+--
+
+INSERT INTO `terms` (`id`, `tahun`, `semester`, `aktif`, `created_at`, `updated_at`) VALUES
+(1, '2024/2025', 'ganjil', 1, '2025-09-10 19:23:59', '2025-09-10 19:23:59');
+
 -- --------------------------------------------------------
 
 --
@@ -521,6 +753,26 @@ CREATE TABLE `users` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `users`
+--
+
+INSERT INTO `users` (`id`, `name`, `email`, `email_verified_at`, `password`, `remember_token`, `created_at`, `updated_at`) VALUES
+(1, 'Administrator', 'admin@sims.com', '2025-09-10 19:23:59', '$2y$12$nb2TCC34TW1B7xHZwYzoeuuZ8bL0mTqtNITLaeyJGnm/UHX9hf.xy', NULL, '2025-09-10 19:23:59', '2025-09-11 19:31:16'),
+(2, 'Budi Santoso', 'budi.guru@sims.com', '2025-09-10 19:23:59', '$2y$12$9O9EpB8aw1mxMWkx69b2mOUczBvlGK5.WaIBka3QOay3mIymeCJwK', NULL, '2025-09-10 19:23:59', '2025-09-10 19:23:59'),
+(3, 'Siti Nurhaliza', 'siti.guru@sims.com', '2025-09-10 19:23:59', '$2y$12$.fZ/pfAAqmtiL6zl0hF.l.Wboglshw9/v00xH/vABPuYcG3l.Tg32', NULL, '2025-09-10 19:23:59', '2025-09-10 19:23:59'),
+(4, 'Ahmad Wijaya', 'ahmad.guru@sims.com', '2025-09-10 19:24:00', '$2y$12$mbq806LUEvYnUun4Z/mSwuBQrNyqtb.IbjHnXIw/GHTAp8RIz6X.6', NULL, '2025-09-10 19:24:00', '2025-09-10 19:24:00'),
+(5, 'Andi Pratama Siregar', 'andi.siswa@sims.com', '2025-09-10 19:24:00', '$2y$12$4w0jaj4si/SO3vSOTtPH..xCMlyvTU9kzTQsFpo7RrxXLnZY7Ygem', NULL, '2025-09-10 19:24:00', '2025-09-14 01:16:05'),
+(6, 'Dewi Sartika', 'dewi.siswa@sims.com', '2025-09-10 19:24:00', '$2y$12$vtcIRNnmtivuQcXUrEDnrOuH306ZNoKuN5Wzuawz8Oy9opbJxRIPy', NULL, '2025-09-10 19:24:00', '2025-09-10 19:24:00'),
+(7, 'Rudi Hermawan', 'rudi.siswa@sims.com', '2025-09-10 19:24:01', '$2y$12$gl5YBBp6WQ7wJxd.5TfHneiKOPLhvvYTPdD4vJjjGo70KJ6foTj1i', NULL, '2025-09-10 19:24:01', '2025-09-10 19:24:01'),
+(8, 'Maya Sari', 'maya.siswa@sims.com', '2025-09-10 19:24:01', '$2y$12$9E7MD5fZw4xmYn4dX.37seIE6O6dHTDVVP/TSRN4BsJee3UuMlqPC', NULL, '2025-09-10 19:24:01', '2025-09-10 19:24:01'),
+(11, 'Bintangin', 'bintang.siswa@sims.com', '2025-09-14 08:37:43', '$2y$12$/JvzBW5A.9L2RALiVzbBn.3aU3Byii.0Sf8cQTc3AlzEs9jRvUss6', NULL, '2025-09-14 01:28:56', '2025-09-14 01:28:56'),
+(12, 'Bintanginn', 'bintang.guru@sims.com', '2025-09-14 02:42:10', '$2y$12$YoUitobHOfUik38htEKhWer/oXwuGW05zluqhg39/zDCbX20Xqrb2', NULL, '2025-09-14 01:32:38', '2025-09-14 02:42:10'),
+(14, 'Ahmad Fauzi', 'ahmad.fauzi@student.com', '2025-09-14 02:54:58', '$2y$12$aTz/afUIGBvuQhk.rToF/.NvOmyDi4gY.WrJq10knyCZSnE/.Zf1y', NULL, '2025-09-14 02:54:58', '2025-09-14 02:54:58'),
+(15, 'Siti Nurhaliza', 'siti.nurhaliza@student.com', '2025-09-14 02:54:59', '$2y$12$wQ.qD4jFR9czweKZ2I6LVOtyIKV/m2B/Dm/S162B4WgoRuk6zbLee', NULL, '2025-09-14 02:54:59', '2025-09-14 02:54:59'),
+(16, 'Budi Santoso', 'budi.santoso@student.com', '2025-09-14 02:54:59', '$2y$12$ZGHUMV/UAwS8MnyUyLOMduXtBqkuI0vwfjjidSca/4diMhWsYtVje', NULL, '2025-09-14 02:54:59', '2025-09-14 02:54:59'),
+(17, 'Dewi Sartika', 'dewi.sartika@student.com', '2025-09-14 02:54:59', '$2y$12$WVTTTQxZN8cKf9kSyYMjGeCg.Edj2a7KFWvfL.WoxFuPRxZcQR1Eu', NULL, '2025-09-14 02:54:59', '2025-09-14 02:54:59');
 
 --
 -- Indexes for dumped tables
@@ -759,7 +1011,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `announcements`
 --
 ALTER TABLE `announcements`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `assignments`
@@ -813,7 +1065,7 @@ ALTER TABLE `grades`
 -- AUTO_INCREMENT for table `guru_profiles`
 --
 ALTER TABLE `guru_profiles`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `jobs`
@@ -837,37 +1089,37 @@ ALTER TABLE `migrations`
 -- AUTO_INCREMENT for table `permissions`
 --
 ALTER TABLE `permissions`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT for table `roles`
 --
 ALTER TABLE `roles`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `sections`
 --
 ALTER TABLE `sections`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `section_students`
 --
 ALTER TABLE `section_students`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `siswa_profiles`
 --
 ALTER TABLE `siswa_profiles`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `subjects`
 --
 ALTER TABLE `subjects`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `submissions`
@@ -879,13 +1131,13 @@ ALTER TABLE `submissions`
 -- AUTO_INCREMENT for table `terms`
 --
 ALTER TABLE `terms`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- Constraints for dumped tables

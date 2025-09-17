@@ -10,6 +10,7 @@ use App\Models\SectionStudent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Carbon\Carbon;
 
@@ -20,7 +21,9 @@ class AbsensiController extends Controller
      */
     public function index(Section $section)
     {
-        $this->authorize('view', $section);
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $attendances = Attendance::where('section_id', $section->id)
             ->withCount('attendanceDetails')
@@ -47,7 +50,9 @@ class AbsensiController extends Controller
      */
     public function create(Section $section)
     {
-        $this->authorize('view', $section);
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $students = SectionStudent::with('user.siswaProfile')
             ->where('section_id', $section->id)
@@ -79,7 +84,9 @@ class AbsensiController extends Controller
      */
     public function store(Request $request, Section $section)
     {
-        $this->authorize('view', $section);
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $request->validate([
             'pertemuan_ke' => 'required|integer|min:1',
@@ -128,7 +135,9 @@ class AbsensiController extends Controller
      */
     public function show(Attendance $attendance)
     {
-        $this->authorize('view', $attendance->section);
+        if (!Gate::allows('access-section', $attendance->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $attendance->load([
             'section.subject',
@@ -163,7 +172,9 @@ class AbsensiController extends Controller
      */
     public function edit(Attendance $attendance)
     {
-        $this->authorize('view', $attendance->section);
+        if (!Gate::allows('access-section', $attendance->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $attendance->load([
             'section.subject',
@@ -198,7 +209,9 @@ class AbsensiController extends Controller
      */
     public function update(Request $request, Attendance $attendance)
     {
-        $this->authorize('view', $attendance->section);
+        if (!Gate::allows('access-section', $attendance->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $request->validate([
             'tanggal' => 'required|date|before_or_equal:today',
@@ -239,7 +252,9 @@ class AbsensiController extends Controller
      */
     public function summary(Section $section)
     {
-        $this->authorize('view', $section);
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $students = SectionStudent::with('user.siswaProfile')
             ->where('section_id', $section->id)

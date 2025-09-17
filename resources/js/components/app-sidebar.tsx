@@ -16,7 +16,6 @@ import {
     LayoutGrid,
     MessageSquare,
     Settings,
-    // BookMarked,
     UserCheck,
     Users,
 } from 'lucide-react';
@@ -81,13 +80,13 @@ const getNavigationItems = (role: string): NavItem[] => {
                     icon: GraduationCap,
                 },
                 {
-                    title: 'Absensi',
-                    href: '/guru/absensi',
-                    icon: UserCheck,
-                },
-                {
                     title: 'Penilaian',
                     href: '/guru/penilaian',
+                    icon: FileText,
+                },
+                {
+                    title: 'Tugas',
+                    href: '/guru/tugas',
                     icon: FileText,
                 },
                 {
