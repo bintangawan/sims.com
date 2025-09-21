@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Siswa\SiswaDashboardController;
 use App\Http\Controllers\Siswa\JadwalController;
 use App\Http\Controllers\Siswa\TugasController;
 use App\Http\Controllers\Siswa\NilaiController;
@@ -7,11 +8,9 @@ use App\Http\Controllers\Siswa\AbsensiController;
 use App\Http\Controllers\Shared\AnnouncementController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth', 'role:siswa'])->prefix('siswa')->name('siswa.')->group(function () {
+Route::middleware(['auth', 'verified', 'role:siswa'])->prefix('siswa')->name('siswa.')->group(function () {
     // Dashboard
-    Route::get('/dashboard', function() {
-        return app(\App\Http\Controllers\DashboardController::class)->index('siswa');
-    })->name('dashboard');
+    Route::get('/dashboard', [SiswaDashboardController::class, 'index'])->name('dashboard');
     
     // Jadwal
     Route::get('/jadwal', [JadwalController::class, 'index'])->name('jadwal.index');

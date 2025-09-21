@@ -31,7 +31,10 @@ class User extends Authenticatable
         ];
     }
 
+    // =====================
     // Relationships
+    // =====================
+
     public function siswaProfile()
     {
         return $this->hasOne(SiswaProfile::class);
@@ -72,7 +75,21 @@ class User extends Authenticatable
         return $this->hasMany(Announcement::class, 'created_by');
     }
 
+    // 🔹 Relasi ke Section lewat pivot section_students
+    public function sections()
+    {
+        return $this->belongsToMany(
+            Section::class,
+            'section_students',
+            'user_id',   // FK di pivot mengarah ke users.id
+            'section_id' // FK di pivot mengarah ke sections.id
+        )->withTimestamps();
+    }
+
+    // =====================
     // Helper methods
+    // =====================
+
     public function isSiswa()
     {
         return $this->hasRole('siswa');

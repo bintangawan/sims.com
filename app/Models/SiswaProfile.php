@@ -31,4 +31,11 @@ class SiswaProfile extends Model
     {
         return $this->belongsTo(User::class, 'wali_kelas_id');
     }
+
+    public function sections()
+    {
+        return $this->user->belongsToMany(Section::class, 'section_students', 'user_id', 'section_id')
+                    ->select('sections.*')
+                    ->withTimestamps();
+    }
 }
