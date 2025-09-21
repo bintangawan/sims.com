@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { BookOpen, CheckCircle, Clock, FileText, MessageSquare, TrendingUp, UserCheck, Users, XCircle } from 'lucide-react';
 import React from 'react';
 
-// Define proper interfaces for admin dashboard data
+// ==== Types ====
 interface AdminDashboardProps extends SharedData {
     currentTerm: {
         id: number;
@@ -46,9 +46,9 @@ interface AdminDashboardProps extends SharedData {
         title: string;
         deadline: string;
         created_at: string;
-        section: {
-            subject: { name: string };
-            guru: { user: { name: string } };
+        section?: {
+            subject?: { name?: string };
+            guru?: { user?: { name?: string } };
         };
     }>;
     overdueAssignments: Array<{
@@ -56,16 +56,16 @@ interface AdminDashboardProps extends SharedData {
         title: string;
         deadline: string;
         ungraded_count: number;
-        section: {
-            subject: { name: string };
-            guru: { user: { name: string } };
+        section?: {
+            subject?: { name?: string };
+            guru?: { user?: { name?: string } };
         };
     }>;
     announcements: Array<{
         id: number;
         title: string;
-        content: string;
-        published_at: string;
+        content?: string;
+        published_at?: string;
     }>;
     monthlyStats: {
         assignments_created: number;
@@ -80,11 +80,11 @@ interface ActivityItem {
     email?: string;
     title?: string;
     deadline?: string;
-    created_at?: string; // Make this optional
+    created_at?: string;
     roles?: Array<{ name: string }>;
     section?: {
-        subject: { name: string };
-        guru: { user: { name: string } };
+        subject?: { name?: string };
+        guru?: { user?: { name?: string } };
     };
     ungraded_count?: number;
 }
@@ -96,6 +96,10 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+// ==== Helpers ====
+const fmtDate = (d?: string) => (d ? new Date(d).toLocaleDateString('id-ID') : 'N/A');
+
+// ==== UI Bits ====
 const StatCard = ({
     title,
     value,
@@ -131,58 +135,73 @@ const StatCard = ({
     </Card>
 );
 
-const RecentActivityCard = ({ title, items, type }: { title: string; items: ActivityItem[]; type: 'users' | 'assignments' | 'overdue' }) => (
-    <Card>
-        <CardHeader>
-            <CardTitle className="text-lg">{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <div className="space-y-3">
-                {items.length > 0 ? (
-                    items.map((item, itemIndex) => (
-                        <div key={itemIndex} className="flex items-center justify-between rounded-lg bg-muted/50 p-2">
-                            <div className="flex-1">
-                                {type === 'users' && (
-                                    <>
-                                        <p className="font-medium">{item.name}</p>
-                                        <p className="text-sm text-muted-foreground">{item.email}</p>
-                                        <Badge variant="outline" className="mt-1">
-                                            {item.roles?.[0]?.name || 'No Role'}
-                                        </Badge>
-                                    </>
-                                )}
-                                {(type === 'assignments' || type === 'overdue') && (
-                                    <>
-                                        <p className="font-medium">{item.title}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            {item.section?.subject.name} - {item.section?.guru.user.name}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Deadline: {item.deadline ? new Date(item.deadline).toLocaleDateString('id-ID') : 'N/A'}
-                                        </p>
-                                        {type === 'overdue' && (
-                                            <Badge variant="destructive" className="mt-1">
-                                                {item.ungraded_count || 0} belum dinilai
-                                            </Badge>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                                {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : 'N/A'}
-                            </div>
-                        </div>
-                    ))
-                ) : (
-                    <p className="py-4 text-center text-sm text-muted-foreground">Tidak ada data terbaru</p>
-                )}
-            </div>
-        </CardContent>
-    </Card>
-);
+const RecentActivityCard = ({ title, items, type }: { title: string; items: ActivityItem[]; type: 'users' | 'assignments' | 'overdue' }) => {
+    const safeItems = Array.isArray(items) ? items : [];
 
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-lg">{title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-3">
+                    {safeItems.length > 0 ? (
+                        safeItems.map((item, itemIndex) => {
+                            const subjectName = item.section?.subject?.name ?? 'Tanpa Mapel';
+                            const teacherName = item.section?.guru?.user?.name ?? '—';
+                            const deadlineText = fmtDate(item.deadline);
+                            const createdAtText = fmtDate(item.created_at);
+
+                            return (
+                                <div key={item.id ?? itemIndex} className="flex items-center justify-between rounded-lg bg-muted/50 p-2">
+                                    <div className="flex-1">
+                                        {type === 'users' && (
+                                            <>
+                                                <p className="font-medium">{item.name ?? 'Tanpa Nama'}</p>
+                                                <p className="text-sm text-muted-foreground">{item.email ?? '—'}</p>
+                                                <Badge variant="outline" className="mt-1">
+                                                    {item.roles?.[0]?.name ?? 'No Role'}
+                                                </Badge>
+                                            </>
+                                        )}
+
+                                        {(type === 'assignments' || type === 'overdue') && (
+                                            <>
+                                                <p className="font-medium">{item.title ?? 'Tanpa Judul'}</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    {subjectName} {teacherName !== '—' ? `- ${teacherName}` : ''}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">Deadline: {deadlineText}</p>
+                                                {type === 'overdue' && (
+                                                    <Badge variant="destructive" className="mt-1">
+                                                        {item.ungraded_count ?? 0} belum dinilai
+                                                    </Badge>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <div className="text-xs text-muted-foreground">{createdAtText}</div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <p className="py-4 text-center text-sm text-muted-foreground">Tidak ada data terbaru</p>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+// ==== Page ====
 export default function AdminDashboard(props: AdminDashboardProps) {
     const { currentTerm, userStats, academicStats, attendanceStats, recentUsers, recentAssignments, overdueAssignments, announcements } = props;
+
+    const usersList = Array.isArray(recentUsers) ? recentUsers : [];
+    const assignmentsList = Array.isArray(recentAssignments) ? recentAssignments : [];
+    const overdueList = Array.isArray(overdueAssignments) ? overdueAssignments : [];
+    const announcementList = Array.isArray(announcements) ? announcements : [];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -246,13 +265,13 @@ export default function AdminDashboard(props: AdminDashboardProps) {
                     transition={{ duration: 0.5, delay: 0.3 }}
                     className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
                 >
-                    <RecentActivityCard title="Pengguna Terbaru" items={recentUsers} type="users" />
-                    <RecentActivityCard title="Tugas Terbaru" items={recentAssignments} type="assignments" />
-                    <RecentActivityCard title="Tugas Terlambat" items={overdueAssignments} type="overdue" />
+                    <RecentActivityCard title="Pengguna Terbaru" items={usersList} type="users" />
+                    <RecentActivityCard title="Tugas Terbaru" items={assignmentsList} type="assignments" />
+                    <RecentActivityCard title="Tugas Terlambat" items={overdueList} type="overdue" />
                 </motion.div>
 
                 {/* Announcements */}
-                {announcements.length > 0 && (
+                {announcementList.length > 0 && (
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.4 }}>
                         <Card>
                             <CardHeader>
@@ -260,13 +279,11 @@ export default function AdminDashboard(props: AdminDashboardProps) {
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
-                                    {announcements.map((announcement, announcementIndex) => (
-                                        <div key={announcementIndex} className="border-l-4 border-primary pl-4">
-                                            <h4 className="font-medium">{announcement.title}</h4>
-                                            <p className="mt-1 text-sm text-muted-foreground">{announcement.content.substring(0, 150)}...</p>
-                                            <p className="mt-2 text-xs text-muted-foreground">
-                                                {new Date(announcement.published_at).toLocaleDateString('id-ID')}
-                                            </p>
+                                    {announcementList.map((announcement, i) => (
+                                        <div key={announcement.id ?? i} className="border-l-4 border-primary pl-4">
+                                            <h4 className="font-medium">{announcement.title ?? 'Tanpa Judul'}</h4>
+                                            <p className="mt-1 text-sm text-muted-foreground">{(announcement.content ?? '').slice(0, 150)}...</p>
+                                            <p className="mt-2 text-xs text-muted-foreground">{fmtDate(announcement.published_at)}</p>
                                         </div>
                                     ))}
                                 </div>

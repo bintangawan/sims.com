@@ -4,21 +4,22 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
-// Landing page
 Route::get('/', [LandingController::class, 'index'])->name('home');
 
-// Authenticated routes
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Main dashboard - redirects based on role
+    // Dashboard utama: pilih role otomatis → redirect ke /dashboard/{role}
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Dashboard spesifik role (general), BUKAN admin.*
+    Route::get('/dashboard/{role}', [DashboardController::class, 'index'])
+        ->whereIn('role', ['admin','guru','siswa'])
+        ->name('role.dashboard');
 });
 
-// Include other route files
+// File routes lainnya
 require __DIR__.'/auth.php';
 require __DIR__.'/settings.php';
 require __DIR__.'/admin.php';
 require __DIR__.'/guru.php';
 require __DIR__.'/siswa.php';
-
-// Include API routes if not using separate api.php
 require __DIR__.'/api.php';

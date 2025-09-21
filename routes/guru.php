@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Guru\GuruDashboardController;
 use App\Http\Controllers\Guru\KelasController;
 use App\Http\Controllers\Guru\MateriController;
 use App\Http\Controllers\Guru\TugasController;
@@ -8,11 +9,9 @@ use App\Http\Controllers\Guru\AbsensiController;
 use App\Http\Controllers\Shared\AnnouncementController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth', 'role:guru'])->prefix('guru')->name('guru.')->group(function () {
+Route::middleware(['auth', 'verified', 'role:guru'])->prefix('guru')->name('guru.')->group(function () {
     // Dashboard
-    Route::get('/dashboard', function() {
-        return app(\App\Http\Controllers\DashboardController::class)->index('guru');
-    })->name('dashboard');
+    Route::get('/dashboard', [GuruDashboardController::class, 'index'])->name('dashboard');
     
     // Kelas/Sections
     Route::get('/kelas', [KelasController::class, 'index'])->name('kelas.index');

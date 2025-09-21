@@ -21,7 +21,7 @@ import { id } from 'date-fns/locale';
 import React, { useState } from 'react';
 // ⬇️ gunakan sub-komponen breadcrumb shadcn
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
-import { AlertCircle, ArrowLeft, Calendar, Edit, Eye, EyeOff, FileText, Trash2, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calendar, Edit, Eye, EyeOff, FileText, Trash2, Users, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Types
@@ -338,8 +338,19 @@ export default function TugasShow({ assignment }: Props) {
                 {/* Submissions Table */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Daftar Submission</CardTitle>
-                        <CardDescription>Status pengumpulan tugas dari siswa</CardDescription>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle>Daftar Submission</CardTitle>
+                                <CardDescription>Status pengumpulan tugas dari siswa</CardDescription>
+                            </div>
+                            <Button 
+                                variant="outline" 
+                                onClick={() => router.get(`/guru/tugas/${assignment.id}/submissions`)}
+                            >
+                                <GraduationCap className="mr-2 h-4 w-4" />
+                                Kelola Penilaian
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <Table>
@@ -351,6 +362,7 @@ export default function TugasShow({ assignment }: Props) {
                                     <TableHead>Waktu Pengumpulan</TableHead>
                                     <TableHead>Nilai</TableHead>
                                     <TableHead>Feedback</TableHead>
+                                    <TableHead className="text-center">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -383,6 +395,20 @@ export default function TugasShow({ assignment }: Props) {
                                                 <span className="text-sm">{submission.feedback}</span>
                                             ) : (
                                                 <span className="text-muted-foreground">-</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            {submission.submitted_at ? (
+                                                <Button
+                                                    size="sm"
+                                                    variant={submission.score !== null ? "outline" : "default"}
+                                                    onClick={() => router.get(`/guru/submissions/${submission.id}/grade`)}
+                                                >
+                                                    <GraduationCap className="mr-1 h-3 w-3" />
+                                                    {submission.score !== null ? 'Edit Nilai' : 'Beri Nilai'}
+                                                </Button>
+                                            ) : (
+                                                <span className="text-muted-foreground text-sm">Belum dikumpul</span>
                                             )}
                                         </TableCell>
                                     </TableRow>

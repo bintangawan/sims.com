@@ -47,25 +47,44 @@ class AnnouncementController extends Controller
                 $query->forRole('siswa');
             }
         } elseif ($userRole === 'guru') {
-            // Apply published filter for teachers
-            $query->published();
+            // Remove published filter for teachers - they should see all their announcements
+            // $query->published(); // Commented out to show both published and unpublished
             
             $guru = $user->guruProfile;
             if ($guru) {
                 $sectionIds = Section::where('guru_id', $user->id)->pluck('id');
-                $query->where(function($q) use ($sectionIds) {
-                    $q->where('scope_type', 'global')
-                      ->orWhere(function($q2) {
-                          $q2->where('scope_type', 'role')
-                             ->where('role_name', 'guru');
-                      })
-                      ->orWhere(function($q3) use ($sectionIds) {
-                          $q3->where('scope_type', 'section')
-                             ->whereIn('scope_id', $sectionIds);
-                      });
+                $query->where(function($q) use ($sectionIds, $user) {
+                    $q->where(function($q1) use ($sectionIds) {
+                        // Show announcements they can access (published ones)
+                        $q1->where(function($q2) use ($sectionIds) {
+                            $q2->where('scope_type', 'global')
+                              ->orWhere(function($q3) {
+                                  $q3->where('scope_type', 'role')
+                                     ->where('role_name', 'guru');
+                              })
+                              ->orWhere(function($q4) use ($sectionIds) {
+                                  $q4->where('scope_type', 'section')
+                                     ->whereIn('scope_id', $sectionIds);
+                              });
+                        })->where(function($q5) {
+                            $q5->whereNotNull('published_at')
+                               ->where('published_at', '<=', now());
+                        });
+                    })->orWhere(function($q6) use ($user) {
+                        // Also show all announcements they created (regardless of publication status)
+                        $q6->where('created_by', $user->id);
+                    });
                 });
             } else {
-                $query->forRole('guru');
+                // If no guru profile, show role-based announcements and their own created ones
+                $query->where(function($q) use ($user) {
+                    $q->where(function($q1) {
+                        $q1->forRole('guru')->where(function($q2) {
+                            $q2->whereNotNull('published_at')
+                               ->where('published_at', '<=', now());
+                        });
+                    })->orWhere('created_by', $user->id);
+                });
             }
         }
         // Admin can see ALL announcements (no additional filtering)

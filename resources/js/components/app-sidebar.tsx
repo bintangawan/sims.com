@@ -80,16 +80,6 @@ const getNavigationItems = (role: string): NavItem[] => {
                     icon: GraduationCap,
                 },
                 {
-                    title: 'Penilaian',
-                    href: '/guru/penilaian',
-                    icon: FileText,
-                },
-                {
-                    title: 'Tugas',
-                    href: '/guru/tugas',
-                    icon: FileText,
-                },
-                {
                     title: 'Pengumuman',
                     href: '/guru/announcements',
                     icon: MessageSquare,

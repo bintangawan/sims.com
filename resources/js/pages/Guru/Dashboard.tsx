@@ -1,91 +1,139 @@
+import React from 'react';
+import { Head, Link } from '@inertiajs/react';
+import AppLayout from '@/layouts/app-layout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem, type SharedData } from '@/types';
-import { Head, Link } from '@inertiajs/react';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
-import { motion } from 'framer-motion';
-import {
-    BookOpen,
-    Calendar,
+import { 
+    Clock, 
+    Users, 
+    BookOpen, 
+    FileText, 
+    TrendingUp, 
     ClipboardList,
-    // CheckCircle,
-    Clock,
-    FileText,
-    // GraduationCap,
-    MessageSquare,
-    TrendingUp,
     UserCheck,
-    Users,
+    Calendar,
+    MessageSquare
 } from 'lucide-react';
-import React from 'react';
+import { format } from 'date-fns';
+import { id as localeID } from 'date-fns/locale';
+import { motion } from 'framer-motion';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 
-// Define interfaces for guru dashboard data
+// ================== Types ==================
 interface GuruProfile {
     id: number;
     user_id: number;
-    nidn: string | null;
-    nuptk: string | null;
-    mapel_keahlian: string | null;
-    telepon: string | null;
+    nip: string;
+    nama: string;
+    alamat: string;
+    telepon: string;
+    tanggal_lahir: string;
+    jenis_kelamin: 'L' | 'P';
+    pendidikan_terakhir: string;
+    mata_pelajaran: string;
+    status: 'aktif' | 'nonaktif';
+    created_at: string;
+    updated_at: string;
+    nidn?: string | null;
+    nuptk?: string | null;
+    mapel_keahlian?: string | null;
 }
 
 interface Term {
     id: number;
-    tahun: string;
-    semester: string;
+    nama: string;
+    tahun_ajaran: string;
+    semester: 'ganjil' | 'genap';
+    tanggal_mulai: string;
+    tanggal_selesai: string;
     aktif: boolean;
+    created_at: string;
+    updated_at: string;
+    tahun?: string;
 }
 
 interface Subject {
     id: number;
     kode: string;
     nama: string;
+    deskripsi: string;
+    sks: number;
+    created_at: string;
+    updated_at: string;
 }
 
 interface Section {
     id: number;
-    subject: Subject;
-    jadwal_json: {
-        hari: number;
+    subject_id: number;
+    guru_id: number;
+    term_id: number;
+    nama: string;
+    kapasitas: number;
+    ruangan: string;
+    jadwal_json: Array<{
+        hari: string;
         jam_mulai: string;
         jam_selesai: string;
-        ruang?: string;
-    };
+        ruangan: string;
+    }>;
+    jadwal_today?: Array<{
+        hari: string;
+        jam_mulai: string;
+        jam_selesai: string;
+        ruangan: string;
+    }>;
+    created_at: string;
+    updated_at: string;
+    subject: Subject;
+    term: Term;
+    student_count?: number;
+    assignment_count?: number;
+    material_count?: number;
+    attendance_rate?: number;
+    students_count?: number;
 }
 
 interface Assignment {
     id: number;
-    judul: string;
+    section_id: number;
+    title?: string;
+    judul?: string;
+    deskripsi: string;
     deadline: string;
-    ungraded_count: number;
-    section: {
-        subject: Subject;
-    };
+    max_score: number;
+    created_at: string;
+    updated_at: string;
+    section: Section;
+    ungraded_count?: number;
 }
 
 interface Attendance {
     id: number;
+    section_id: number;
     tanggal: string;
-    pertemuan_ke: number;
-    section: {
-        subject: Subject;
-    };
+    created_at: string;
+    updated_at: string;
+    section: Section;
+    students_count?: number;
+    pertemuan_ke?: number;
 }
 
 interface Submission {
     id: number;
+    assignment_id: number;
+    user_id: number;
+    file_path: string;
     submitted_at: string;
-    assignment: {
-        judul: string;
-        section: {
-            subject: Subject;
-        };
-    };
+    score: number | null;
+    feedback: string | null;
+    created_at: string;
+    updated_at: string;
+    assignment: Assignment;
     user: {
+        id: number;
         name: string;
+        email: string;
     };
 }
 
@@ -93,25 +141,41 @@ interface Announcement {
     id: number;
     title: string;
     content: string;
-    published_at: string;
+    scope_type: 'global' | 'role' | 'section';
+    role_name: string | null;
+    section_id: number | null;
+    published_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+interface AttendanceStats {
+    present_today: number;
+    absent_today: number;
+    sick_today: number;
+    permission_today: number;
 }
 
 interface GuruDashboardProps extends SharedData {
-    guru?: GuruProfile;
-    currentTerm: Term | null;
-    todaySchedule?: Section[];
-    assignmentsToGrade?: Assignment[];
-    recentAttendance?: Attendance[];
+    guru?: GuruProfile | null;
+    currentTerm?: Term | null;
+    todaySchedule?: Section[] | null;
+    assignmentsToGrade?: Assignment[] | null;
+    recentAttendance?: Attendance[] | null;
     teachingStats?: {
-        total_sections: number;
-        total_students: number;
-        total_assignments: number;
-        pending_grading: number;
-    };
-    announcements?: Announcement[];
-    recentSubmissions?: Submission[];
+        total_sections?: number;
+        total_students?: number;
+        total_assignments?: number;
+        pending_grading?: number;
+    } | null;
+    announcements?: Announcement[] | null;
+    recentSubmissions?: Submission[] | null;
+    attendanceStats?: AttendanceStats | null;
+    upcomingDeadlines?: Assignment[] | null;
+    classDetails?: Section[] | null;
 }
 
+// ================== Breadcrumbs ==================
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Dashboard Guru',
@@ -119,6 +183,11 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+// ================== Helpers ==================
+const fmtDate = (d?: string) => (d ? format(new Date(d), 'dd MMM yyyy', { locale: localeID }) : '—');
+const fmtDateTime = (d?: string) => (d ? format(new Date(d), 'dd MMM yyyy HH:mm', { locale: localeID }) : '—');
+
+// ================== UI Fragments ==================
 const StatCard = ({
     title,
     value,
@@ -145,7 +214,7 @@ const StatCard = ({
                     <Icon className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{value.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">{(value ?? 0).toLocaleString()}</div>
                     <p className="text-xs text-muted-foreground">{description}</p>
                     {trend && (
                         <div
@@ -175,15 +244,15 @@ const ScheduleCard = ({ schedule }: { schedule: Section[] }) => (
             <div className="space-y-3">
                 {schedule.length > 0 ? (
                     schedule.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
+                        <div key={item.id ?? index} className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
                             <div className="flex-1">
-                                <p className="font-medium">{item.subject.nama}</p>
+                                <p className="font-medium">{item.subject?.nama ?? 'Mata Pelajaran'}</p>
                                 <p className="text-sm text-muted-foreground">
-                                    {item.jadwal_json.jam_mulai} - {item.jadwal_json.jam_selesai}
+                                    {item.jadwal_today?.[0]?.jam_mulai ?? '--:--'} - {item.jadwal_today?.[0]?.jam_selesai ?? '--:--'}
                                 </p>
-                                {item.jadwal_json.ruang && <p className="text-sm text-muted-foreground">Ruang: {item.jadwal_json.ruang}</p>}
+                                {item.jadwal_today?.[0]?.ruangan && <p className="text-sm text-muted-foreground">Ruangan: {item.jadwal_today?.[0]?.ruangan}</p>}
                             </div>
-                            <Badge variant="outline">{item.subject.kode}</Badge>
+                            <Badge variant="outline">{item.subject?.kode ?? '-'}</Badge>
                         </div>
                     ))
                 ) : (
@@ -206,15 +275,13 @@ const AssignmentsToGradeCard = ({ assignments }: { assignments: Assignment[] }) 
             <div className="space-y-3">
                 {assignments.length > 0 ? (
                     assignments.map((assignment, index) => (
-                        <div key={index} className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
+                        <div key={assignment.id ?? index} className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
                             <div className="flex-1">
-                                <p className="font-medium">{assignment.judul}</p>
-                                <p className="text-sm text-muted-foreground">{assignment.section.subject.nama}</p>
-                                <p className="text-sm text-muted-foreground">
-                                    Deadline: {format(new Date(assignment.deadline), 'dd MMM yyyy HH:mm', { locale: id })}
-                                </p>
+                                <p className="font-medium">{assignment.judul ?? 'Tanpa Judul'}</p>
+                                <p className="text-sm text-muted-foreground">{assignment.section?.subject?.nama ?? 'Mata Pelajaran'}</p>
+                                <p className="text-sm text-muted-foreground">Deadline: {fmtDateTime(assignment.deadline)}</p>
                             </div>
-                            <Badge variant="destructive">{assignment.ungraded_count} belum dinilai</Badge>
+                            <Badge variant="destructive">{assignment.ungraded_count ?? 0} belum dinilai</Badge>
                         </div>
                     ))
                 ) : (
@@ -244,15 +311,13 @@ const RecentSubmissionsCard = ({ submissions }: { submissions: Submission[] }) =
             <div className="space-y-3">
                 {submissions.length > 0 ? (
                     submissions.map((submission, index) => (
-                        <div key={index} className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
+                        <div key={submission.id ?? index} className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
                             <div className="flex-1">
-                                <p className="font-medium">{submission.assignment.judul}</p>
+                                <p className="font-medium">{submission.assignment?.judul ?? 'Tanpa Judul'}</p>
                                 <p className="text-sm text-muted-foreground">
-                                    {submission.assignment.section.subject.nama} - {submission.user.name}
+                                    {submission.assignment?.section?.subject?.nama ?? 'Mata Pelajaran'} - {submission.user?.name ?? 'Siswa'}
                                 </p>
-                                <p className="text-sm text-muted-foreground">
-                                    {format(new Date(submission.submitted_at), 'dd MMM yyyy HH:mm', { locale: id })}
-                                </p>
+                                <p className="text-sm text-muted-foreground">{fmtDateTime(submission.submitted_at)}</p>
                             </div>
                             <Badge variant="outline">Baru</Badge>
                         </div>
@@ -265,22 +330,23 @@ const RecentSubmissionsCard = ({ submissions }: { submissions: Submission[] }) =
     </Card>
 );
 
+// ================== Page ==================
 export default function GuruDashboard(props: GuruDashboardProps) {
     const { guru, currentTerm, todaySchedule, assignmentsToGrade, recentAttendance, teachingStats, announcements, recentSubmissions } = props;
 
-    // Add default values to prevent undefined errors
-    const safeTeachingStats = teachingStats || {
-        total_sections: 0,
-        total_students: 0,
-        total_assignments: 0,
-        pending_grading: 0,
+    // Default & safety guards
+    const safeTeachingStats = {
+        total_sections: teachingStats?.total_sections ?? 0,
+        total_students: teachingStats?.total_students ?? 0,
+        total_assignments: teachingStats?.total_assignments ?? 0,
+        pending_grading: teachingStats?.pending_grading ?? 0,
     };
 
-    const safeTodaySchedule = todaySchedule || [];
-    const safeAssignmentsToGrade = assignmentsToGrade || [];
-    const safeRecentAttendance = recentAttendance || [];
-    const safeAnnouncements = announcements || [];
-    const safeRecentSubmissions = recentSubmissions || [];
+    const safeTodaySchedule: Section[] = Array.isArray(todaySchedule) ? todaySchedule : [];
+    const safeAssignmentsToGrade: Assignment[] = Array.isArray(assignmentsToGrade) ? assignmentsToGrade : [];
+    const safeRecentAttendance: Attendance[] = Array.isArray(recentAttendance) ? recentAttendance : [];
+    const safeAnnouncements: Announcement[] = Array.isArray(announcements) ? announcements : [];
+    const safeRecentSubmissions: Submission[] = Array.isArray(recentSubmissions) ? recentSubmissions : [];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -375,13 +441,11 @@ export default function GuruDashboard(props: GuruDashboardProps) {
                             <div className="space-y-3">
                                 {safeRecentAttendance.length > 0 ? (
                                     safeRecentAttendance.map((attendance, index) => (
-                                        <div key={index} className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
+                                        <div key={attendance.id ?? index} className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
                                             <div className="flex-1">
-                                                <p className="font-medium">{attendance.section?.subject?.nama || 'Mata Pelajaran'}</p>
-                                                <p className="text-sm text-muted-foreground">Pertemuan ke-{attendance.pertemuan_ke}</p>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {format(new Date(attendance.tanggal), 'dd MMM yyyy', { locale: id })}
-                                                </p>
+                                                <p className="font-medium">{attendance.section?.subject?.nama ?? 'Mata Pelajaran'}</p>
+                                                <p className="text-sm text-muted-foreground">Pertemuan ke-{attendance.pertemuan_ke ?? '-'}</p>
+                                                <p className="text-sm text-muted-foreground">{fmtDate(attendance.tanggal)}</p>
                                             </div>
                                             <Badge variant="outline">Selesai</Badge>
                                         </div>
@@ -410,12 +474,10 @@ export default function GuruDashboard(props: GuruDashboardProps) {
                             <div className="space-y-4">
                                 {safeAnnouncements.length > 0 ? (
                                     safeAnnouncements.map((announcement, index) => (
-                                        <div key={index} className="border-l-4 border-primary pl-4">
-                                            <h4 className="font-medium">{announcement.title}</h4>
-                                            <p className="line-clamp-2 text-sm text-muted-foreground">{announcement.content}</p>
-                                            <p className="mt-1 text-xs text-muted-foreground">
-                                                {format(new Date(announcement.published_at), 'dd MMM yyyy', { locale: id })}
-                                            </p>
+                                        <div key={announcement.id ?? index} className="border-l-4 border-primary pl-4">
+                                            <h4 className="font-medium">{announcement.title ?? 'Tanpa Judul'}</h4>
+                                            <p className="line-clamp-2 text-sm text-muted-foreground">{announcement.content ?? ''}</p>
+                                            <p className="mt-1 text-xs text-muted-foreground">{fmtDate(announcement.published_at ?? undefined)}</p>
                                         </div>
                                     ))
                                 ) : (

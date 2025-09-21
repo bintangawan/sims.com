@@ -23,30 +23,33 @@ class DashboardController extends Controller
      */
     public function index($role = null)
     {
+        /** @var \App\Models\User $user */
         $user = Auth::user();
-        
-        // Determine user role
+
+        if (request()->routeIs('admin.dashboard')) {
+            abort_unless($user->hasRole('admin'), 403, 'Anda tidak memiliki akses ke dashboard ini.');
+            return $this->adminDashboard($user);
+        }
+
         if (!$role) {
-            $userRole = $user->roles->first()->name ?? 'siswa';
-            
-            // Redirect to role-specific dashboard
-            return redirect()->route($userRole . '.dashboard');
-        } else {
-            $userRole = $role;
+            $preferredRole = collect(['admin','guru','siswa'])
+                ->first(fn($r) => $user->hasRole($r))
+                ?? ($user->roles->first()->name ?? 'siswa');
+
+            return redirect()->route('role.dashboard', ['role' => $preferredRole]);
         }
 
-        // Check if user has the requested role
-        if (!$user->hasRole($userRole)) {
-            abort(403, 'Anda tidak memiliki akses ke dashboard ini.');
-        }
+        abort_unless($user->hasRole($role), 403, 'Anda tidak memiliki akses ke dashboard ini.');
 
-        return match($userRole) {
+        return match ($role) {
             'siswa' => $this->siswaDashboard($user),
-            'guru' => $this->guruDashboard($user),
+            'guru'  => $this->guruDashboard($user),
             'admin' => $this->adminDashboard($user),
-            default => $this->defaultDashboard($user)
+            default => $this->defaultDashboard($user),
         };
     }
+
+
 
     /**
      * Siswa Dashboard

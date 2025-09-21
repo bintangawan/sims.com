@@ -9,6 +9,7 @@ use App\Models\Submission;
 use App\Models\Grade;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -19,7 +20,9 @@ class PenilaianController extends Controller
      */
     public function submissions(Assignment $assignment)
     {
-        $this->authorize('view', $assignment->section);
+        if (!Gate::allows('access-section', $assignment->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $submissions = Submission::with('user.siswaProfile')
             ->where('assignment_id', $assignment->id)
@@ -55,7 +58,9 @@ class PenilaianController extends Controller
      */
     public function show(Submission $submission)
     {
-        $this->authorize('view', $submission->assignment->section);
+        if (!Gate::allows('access-section', $submission->assignment->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $submission->load(['user.siswaProfile', 'assignment.section.subject']);
         
@@ -84,7 +89,9 @@ class PenilaianController extends Controller
      */
     public function update(Request $request, Submission $submission)
     {
-        $this->authorize('view', $submission->assignment->section);
+        if (!Gate::allows('access-section', $submission->assignment->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $request->validate([
             'score' => 'required|numeric|min:0|max:100',
@@ -105,7 +112,9 @@ class PenilaianController extends Controller
      */
     public function bulkGrade(Request $request, Assignment $assignment)
     {
-        $this->authorize('view', $assignment->section);
+        if (!Gate::allows('access-section', $assignment->section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $request->validate([
             'grades' => 'required|array',
@@ -137,7 +146,9 @@ class PenilaianController extends Controller
      */
     public function export(Section $section)
     {
-        $this->authorize('view', $section);
+        if (!Gate::allows('access-section', $section)) {
+            abort(403, 'Unauthorized access to this section.');
+        }
         
         $section->load([
             'subject',

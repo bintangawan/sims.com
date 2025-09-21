@@ -11,6 +11,7 @@ use App\Models\Submission;
 use App\Models\Announcement;
 use App\Models\Subject;
 use App\Models\Attendance;
+use App\Models\AttendanceDetail;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Carbon\Carbon;
@@ -47,15 +48,15 @@ class AdminDashboardController extends Controller
 
         // Attendance statistics for current month
         $attendanceStats = [
-            'present_today' => Attendance::whereDate('tanggal', today())
-                ->where('status', 'hadir')
-                ->count(),
-            'absent_today' => Attendance::whereDate('tanggal', today())
-                ->where('status', 'tidak_hadir')
-                ->count(),
-            'late_today' => Attendance::whereDate('tanggal', today())
-                ->where('status', 'terlambat')
-                ->count(),
+            'present_today' => AttendanceDetail::whereHas('attendance', function($query) {
+                $query->whereDate('tanggal', today());
+            })->where('status', 'hadir')->count(),
+            'absent_today' => AttendanceDetail::whereHas('attendance', function($query) {
+                $query->whereDate('tanggal', today());
+            })->where('status', 'alpha')->count(),
+            'late_today' => AttendanceDetail::whereHas('attendance', function($query) {
+                $query->whereDate('tanggal', today());
+            })->where('status', 'sakit')->count(),
         ];
 
         // Recent activities
@@ -67,7 +68,7 @@ class AdminDashboardController extends Controller
         $recentAssignments = Assignment::whereHas('section', function($query) use ($currentTerm) {
                 $query->where('term_id', $currentTerm?->id);
             })
-            ->with(['section.subject', 'section.guru.user'])
+            ->with(['section.subject', 'section.guru'])
             ->orderBy('created_at', 'desc')
             ->take(5)
             ->get();
@@ -83,7 +84,7 @@ class AdminDashboardController extends Controller
             ->withCount(['submissions as ungraded_count' => function($query) {
                 $query->whereNull('score');
             }])
-            ->with(['section.subject', 'section.guru.user'])
+            ->with(['section.subject', 'section.guru'])
             ->orderBy('deadline')
             ->take(5)
             ->get();

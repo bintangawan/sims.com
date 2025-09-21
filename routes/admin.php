@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\MasterDataController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\JadwalController;
@@ -8,11 +9,11 @@ use App\Http\Controllers\Admin\ChatbotConfigController;
 use App\Http\Controllers\Shared\AnnouncementController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
-    // Dashboard - menggunakan DashboardController utama dengan parameter role
-    Route::get('/dashboard', function() {
-        return app(\App\Http\Controllers\DashboardController::class)->index('admin');
-    })->name('dashboard');
+Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/dashboard', [AdminDashboardController::class, 'index'])
+            ->name('dashboard');
     
     // Master Data
     Route::get('/master-data', [MasterDataController::class, 'index'])->name('master-data.index');
