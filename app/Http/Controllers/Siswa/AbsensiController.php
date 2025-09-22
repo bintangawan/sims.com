@@ -10,7 +10,6 @@ use App\Models\Section;
 use App\Models\Term;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Carbon\Carbon;
 
@@ -22,33 +21,33 @@ class AbsensiController extends Controller
     public function index(Request $request)
     {
         $siswa = Auth::user()->siswaProfile;
-        
+
         if (!$siswa) {
             return redirect()->route('siswa.dashboard')
                 ->with('error', 'Profile siswa tidak ditemukan.');
         }
 
-        // Get current term or filter by term
-        $currentTerm = Term::where('is_active', true)->first();
+        // Term aktif (fallback)
+        $currentTerm = Term::where('aktif', true)->first();
         $termId = $request->get('term_id', $currentTerm?->id);
 
-        // Get sections where student is enrolled
+        // Semua section tempat siswa terdaftar
         $sectionIds = $siswa->sections()->pluck('sections.id');
 
-        // Get attendance details for this student
-        $attendanceQuery = AttendanceDetail::where('siswa_id', $siswa->id)
+        // Attendance detail untuk user ini
+        $attendanceQuery = AttendanceDetail::where('user_id', $siswa->user_id)
             ->whereHas('attendance.section', function ($query) use ($sectionIds, $termId) {
                 $query->whereIn('id', $sectionIds);
                 if ($termId) {
                     $query->where('term_id', $termId);
                 }
             })
-            ->with(['attendance.section.subject', 'attendance.section.guru.user']);
+            ->with(['attendance.section.subject', 'attendance.section.guru', 'attendance']);
 
-        // Filter by date range if provided
-        if ($request->has('start_date') && $request->has('end_date')) {
+        // Filter rentang tanggal (opsional)
+        if ($request->filled('start_date') && $request->filled('end_date')) {
             $attendanceQuery->whereHas('attendance', function ($query) use ($request) {
-                $query->whereBetween('date', [$request->start_date, $request->end_date]);
+                $query->whereBetween('tanggal', [$request->start_date, $request->end_date]);
             });
         }
 
@@ -56,50 +55,64 @@ class AbsensiController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // Calculate attendance statistics
-        $allAttendance = AttendanceDetail::where('siswa_id', $siswa->id)
+        // Semua attendance untuk statistik
+        $allAttendance = AttendanceDetail::where('user_id', $siswa->user_id)
             ->whereHas('attendance.section', function ($query) use ($sectionIds, $termId) {
                 $query->whereIn('id', $sectionIds);
                 if ($termId) {
                     $query->where('term_id', $termId);
                 }
             })
+            ->with(['attendance.section.subject'])
             ->get();
 
+        // Mapping status DB -> statistik
+        $present = $allAttendance->where('status', 'hadir')->count();
+        $absent  = $allAttendance->where('status', 'alpha')->count();
+        // DB tidak punya 'late', jadi 0
+        $late    = 0;
+        // excused = izin + sakit
+        $excused = $allAttendance->whereIn('status', ['izin', 'sakit'])->count();
+
         $statistics = [
-            'total_sessions' => $allAttendance->count(),
-            'present' => $allAttendance->where('status', 'present')->count(),
-            'absent' => $allAttendance->where('status', 'absent')->count(),
-            'late' => $allAttendance->where('status', 'late')->count(),
-            'excused' => $allAttendance->where('status', 'excused')->count(),
+            'total_sessions'        => $allAttendance->count(),
+            'present'               => $present,
+            'absent'                => $absent,
+            'late'                  => $late,
+            'excused'               => $excused,
+            // persentase kehadiran: hadir / total
+            'attendance_percentage' => $allAttendance->count() > 0
+                ? round(($present) / $allAttendance->count() * 100, 2)
+                : 0,
         ];
 
-        $statistics['attendance_percentage'] = $statistics['total_sessions'] > 0 
-            ? round(($statistics['present'] + $statistics['late']) / $statistics['total_sessions'] * 100, 2)
-            : 0;
-
-        // Get attendance by subject
-        $attendanceBySubject = $allAttendance->groupBy('attendance.section.subject.name')
+        // Rekap per mata pelajaran (pakai 'nama', bukan 'name')
+        $attendanceBySubject = $allAttendance
+            ->groupBy(function ($detail) {
+                return optional($detail->attendance->section->subject)->nama ?? 'Tanpa Nama';
+            })
             ->map(function ($subjectAttendance, $subjectName) {
-                $total = $subjectAttendance->count();
-                $present = $subjectAttendance->where('status', 'present')->count();
-                $late = $subjectAttendance->where('status', 'late')->count();
-                
+                $total   = $subjectAttendance->count();
+                $present = $subjectAttendance->where('status', 'hadir')->count();
+                $absent  = $subjectAttendance->where('status', 'alpha')->count();
+                $late    = 0; // tidak ada 'late' di DB
+                $excused = $subjectAttendance->whereIn('status', ['izin', 'sakit'])->count();
+
                 return [
-                    'subject_name' => $subjectName,
+                    'subject_name'   => $subjectName,
                     'total_sessions' => $total,
-                    'present' => $present,
-                    'late' => $late,
-                    'absent' => $subjectAttendance->where('status', 'absent')->count(),
-                    'excused' => $subjectAttendance->where('status', 'excused')->count(),
-                    'percentage' => $total > 0 ? round(($present + $late) / $total * 100, 2) : 0,
+                    'present'        => $present,
+                    'late'           => $late,
+                    'absent'         => $absent,
+                    'excused'        => $excused,
+                    'percentage'     => $total > 0 ? round(($present) / $total * 100, 2) : 0,
                 ];
             });
 
-        // Get available terms
-        $terms = Term::orderBy('start_date', 'desc')->get();
+        // Daftar term (urutkan berdasarkan tahun terbaru)
+        $terms = Term::orderBy('tahun', 'desc')->get();
 
-        // Get subjects for filter
+        // Daftar subject untuk filter (pakai 'nama')
         $subjects = Section::whereIn('id', $sectionIds)
             ->with('subject')
             ->get()
@@ -109,37 +122,35 @@ class AbsensiController extends Controller
 
         return Inertia::render('Siswa/Absensi/Index', [
             'attendanceDetails' => $attendanceDetails,
-            'statistics' => $statistics,
+            'statistics'        => $statistics,
             'attendanceBySubject' => $attendanceBySubject,
-            'terms' => $terms,
-            'currentTerm' => $currentTerm,
-            'selectedTermId' => $termId,
-            'subjects' => $subjects,
-            'filters' => $request->only(['start_date', 'end_date', 'term_id']),
+            'terms'            => $terms,
+            'currentTerm'      => $currentTerm,
+            'selectedTermId'   => $termId,
+            'subjects'         => $subjects,
+            'filters'          => $request->only(['start_date', 'end_date', 'term_id']),
         ]);
     }
 
     /**
-     * Display attendance summary
+     * Display attendance summary (monthly & weekly)
      */
     public function summary(Request $request)
     {
         $siswa = Auth::user()->siswaProfile;
-        
+
         if (!$siswa) {
             return redirect()->route('siswa.dashboard')
                 ->with('error', 'Profile siswa tidak ditemukan.');
         }
 
-        // Get current term or filter by term
-        $currentTerm = Term::where('is_active', true)->first();
+        $currentTerm = Term::where('aktif', true)->first();
         $termId = $request->get('term_id', $currentTerm?->id);
 
-        // Get sections where student is enrolled
         $sectionIds = $siswa->sections()->pluck('sections.id');
 
-        // Get monthly attendance summary
-        $monthlyAttendance = AttendanceDetail::where('siswa_id', $siswa->id)
+        // 6 bulan terakhir
+        $monthlyAttendance = AttendanceDetail::where('user_id', $siswa->user_id)
             ->whereHas('attendance.section', function ($query) use ($sectionIds, $termId) {
                 $query->whereIn('id', $sectionIds);
                 if ($termId) {
@@ -147,36 +158,38 @@ class AbsensiController extends Controller
                 }
             })
             ->whereHas('attendance', function ($query) {
-                $query->where('date', '>=', Carbon::now()->subMonths(6));
+                $query->where('tanggal', '>=', Carbon::now()->subMonths(6));
             })
             ->with('attendance')
             ->get()
             ->groupBy(function ($item) {
-                return Carbon::parse($item->attendance->date)->format('Y-m');
+                return Carbon::parse($item->attendance->tanggal)->format('Y-m');
             })
             ->map(function ($monthData, $month) {
-                $total = $monthData->count();
-                $present = $monthData->where('status', 'present')->count();
-                $late = $monthData->where('status', 'late')->count();
-                
+                $total   = $monthData->count();
+                $present = $monthData->where('status', 'hadir')->count();
+                $absent  = $monthData->where('status', 'alpha')->count();
+                $late    = 0; // tidak ada 'late' di DB
+                $excused = $monthData->whereIn('status', ['izin', 'sakit'])->count();
+
                 return [
-                    'month' => $month,
-                    'month_name' => Carbon::parse($month . '-01')->locale('id')->monthName,
-                    'total' => $total,
-                    'present' => $present,
-                    'late' => $late,
-                    'absent' => $monthData->where('status', 'absent')->count(),
-                    'excused' => $monthData->where('status', 'excused')->count(),
-                    'percentage' => $total > 0 ? round(($present + $late) / $total * 100, 2) : 0,
+                    'month'       => $month,
+                    'month_name'  => Carbon::parse($month . '-01')->locale('id')->monthName,
+                    'total'       => $total,
+                    'present'     => $present,
+                    'late'        => $late,
+                    'absent'      => $absent,
+                    'excused'     => $excused,
+                    'percentage'  => $total > 0 ? round(($present) / $total * 100, 2) : 0,
                 ];
             })
             ->sortKeys();
 
-        // Get weekly attendance for current month
+        // Mingguan untuk bulan berjalan
         $startOfMonth = Carbon::now()->startOfMonth();
-        $endOfMonth = Carbon::now()->endOfMonth();
-        
-        $weeklyAttendance = AttendanceDetail::where('siswa_id', $siswa->id)
+        $endOfMonth   = Carbon::now()->endOfMonth();
+
+        $weeklyAttendance = AttendanceDetail::where('user_id', $siswa->user_id)
             ->whereHas('attendance.section', function ($query) use ($sectionIds, $termId) {
                 $query->whereIn('id', $sectionIds);
                 if ($termId) {
@@ -184,37 +197,39 @@ class AbsensiController extends Controller
                 }
             })
             ->whereHas('attendance', function ($query) use ($startOfMonth, $endOfMonth) {
-                $query->whereBetween('date', [$startOfMonth, $endOfMonth]);
+                $query->whereBetween('tanggal', [$startOfMonth, $endOfMonth]);
             })
             ->with('attendance')
             ->get()
             ->groupBy(function ($item) {
-                return Carbon::parse($item->attendance->date)->weekOfYear;
+                return Carbon::parse($item->attendance->tanggal)->weekOfYear;
             })
             ->map(function ($weekData, $week) {
-                $total = $weekData->count();
-                $present = $weekData->where('status', 'present')->count();
-                $late = $weekData->where('status', 'late')->count();
-                
+                $total   = $weekData->count();
+                $present = $weekData->where('status', 'hadir')->count();
+                $absent  = $weekData->where('status', 'alpha')->count();
+                $late    = 0;
+                $excused = $weekData->whereIn('status', ['izin', 'sakit'])->count();
+
                 return [
-                    'week' => $week,
-                    'total' => $total,
-                    'present' => $present,
-                    'late' => $late,
-                    'absent' => $weekData->where('status', 'absent')->count(),
-                    'percentage' => $total > 0 ? round(($present + $late) / $total * 100, 2) : 0,
+                    'week'       => $week,
+                    'total'      => $total,
+                    'present'    => $present,
+                    'late'       => $late,
+                    'absent'     => $absent,
+                    'excused'    => $excused,
+                    'percentage' => $total > 0 ? round(($present) / $total * 100, 2) : 0,
                 ];
             });
 
-        // Get available terms
-        $terms = Term::orderBy('start_date', 'desc')->get();
+        $terms = Term::orderBy('tahun', 'desc')->get();
 
         return Inertia::render('Siswa/Absensi/Summary', [
             'monthlyAttendance' => $monthlyAttendance,
-            'weeklyAttendance' => $weeklyAttendance,
-            'terms' => $terms,
-            'currentTerm' => $currentTerm,
-            'selectedTermId' => $termId,
+            'weeklyAttendance'  => $weeklyAttendance,
+            'terms'             => $terms,
+            'currentTerm'       => $currentTerm,
+            'selectedTermId'    => $termId,
         ]);
     }
 
@@ -224,13 +239,13 @@ class AbsensiController extends Controller
     public function bySubject(Subject $subject, Request $request)
     {
         $siswa = Auth::user()->siswaProfile;
-        
+
         if (!$siswa) {
             return redirect()->route('siswa.dashboard')
                 ->with('error', 'Profile siswa tidak ditemukan.');
         }
 
-        // Check if student is enrolled in any section of this subject
+        // Pastikan siswa punya section untuk subject ini
         $sectionIds = $siswa->sections()
             ->where('subject_id', $subject->id)
             ->pluck('sections.id');
@@ -239,25 +254,24 @@ class AbsensiController extends Controller
             abort(403, 'Anda tidak memiliki akses ke mata pelajaran ini.');
         }
 
-        // Get current term or filter by term
-        $currentTerm = Term::where('is_active', true)->first();
+        $currentTerm = Term::where('aktif', true)->first();
         $termId = $request->get('term_id', $currentTerm?->id);
 
-        // Get attendance details for this subject
-        $attendanceDetails = AttendanceDetail::where('siswa_id', $siswa->id)
+        // Detail absensi subject ini
+        $attendanceDetails = AttendanceDetail::where('user_id', $siswa->user_id)
             ->whereHas('attendance.section', function ($query) use ($sectionIds, $termId) {
                 $query->whereIn('id', $sectionIds);
                 if ($termId) {
                     $query->where('term_id', $termId);
                 }
             })
-            ->with(['attendance.section.guru.user', 'attendance'])
+            ->with(['attendance.section.guru', 'attendance'])
             ->orderBy('created_at', 'desc')
             ->paginate(15)
             ->withQueryString();
 
-        // Calculate statistics for this subject
-        $allAttendance = AttendanceDetail::where('siswa_id', $siswa->id)
+        // Statistik subject ini
+        $allAttendance = AttendanceDetail::where('user_id', $siswa->user_id)
             ->whereHas('attendance.section', function ($query) use ($sectionIds, $termId) {
                 $query->whereIn('id', $sectionIds);
                 if ($termId) {
@@ -268,26 +282,25 @@ class AbsensiController extends Controller
 
         $statistics = [
             'total_sessions' => $allAttendance->count(),
-            'present' => $allAttendance->where('status', 'present')->count(),
-            'absent' => $allAttendance->where('status', 'absent')->count(),
-            'late' => $allAttendance->where('status', 'late')->count(),
-            'excused' => $allAttendance->where('status', 'excused')->count(),
+            'present'        => $allAttendance->where('status', 'hadir')->count(),
+            'absent'         => $allAttendance->where('status', 'alpha')->count(),
+            'late'           => 0, // tidak ada di DB
+            'excused'        => $allAttendance->whereIn('status', ['izin', 'sakit'])->count(),
         ];
 
-        $statistics['attendance_percentage'] = $statistics['total_sessions'] > 0 
-            ? round(($statistics['present'] + $statistics['late']) / $statistics['total_sessions'] * 100, 2)
+        $statistics['attendance_percentage'] = $statistics['total_sessions'] > 0
+            ? round(($statistics['present']) / $statistics['total_sessions'] * 100, 2)
             : 0;
 
-        // Get available terms
-        $terms = Term::orderBy('start_date', 'desc')->get();
+        $terms = Term::orderBy('tahun', 'desc')->get();
 
         return Inertia::render('Siswa/Absensi/BySubject', [
-            'subject' => $subject,
+            'subject'           => $subject,
             'attendanceDetails' => $attendanceDetails,
-            'statistics' => $statistics,
-            'terms' => $terms,
-            'currentTerm' => $currentTerm,
-            'selectedTermId' => $termId,
+            'statistics'        => $statistics,
+            'terms'             => $terms,
+            'currentTerm'       => $currentTerm,
+            'selectedTermId'    => $termId,
         ]);
     }
 }

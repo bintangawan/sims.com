@@ -109,11 +109,11 @@ const getNavigationItems = (role: string): NavItem[] => {
                     href: '/siswa/absensi',
                     icon: UserCheck,
                 },
-                {
-                    title: 'Pengumuman',
-                    href: '/siswa/announcements',
-                    icon: MessageSquare,
-                },
+                // {
+                //     title: 'Pengumuman',
+                //     href: '/siswa/announcements',
+                //     icon: MessageSquare,
+                // },
             ];
 
         default:

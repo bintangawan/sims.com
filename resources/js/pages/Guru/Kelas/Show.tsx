@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
@@ -8,7 +9,6 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ArrowLeft, BookOpen, Calendar, CheckSquare, Clock, Download, Mail, Menu, Plus, Search, User, UserPlus, Users } from 'lucide-react';
 import { useState } from 'react';
 
@@ -130,7 +130,7 @@ export default function KelasShow({ section }: Props) {
                     </div>
 
                     {/* Desktop Actions - Hidden on mobile */}
-                    <div className="hidden md:flex items-center space-x-2">
+                    <div className="hidden items-center space-x-2 md:flex">
                         <div className="flex gap-3">
                             <Link
                                 href={route('guru.kelas.create', section.id)}
@@ -149,11 +149,11 @@ export default function KelasShow({ section }: Props) {
                             </Link>
 
                             <Link
-                                href={route('guru.materi.create', { section: section.id, section_id: section.id })}
+                                href={route('guru.tugas.index', { section: section.id, section_id: section.id })}
                                 className="inline-flex items-center rounded-md border border-transparent bg-purple-600 px-4 py-2 text-xs font-semibold tracking-widest text-white uppercase ring-purple-300 transition duration-150 ease-in-out hover:bg-purple-700 focus:border-purple-900 focus:ring focus:outline-none active:bg-purple-900 disabled:opacity-25"
                             >
                                 <Plus className="mr-2 h-4 w-4" />
-                                Tambah Materi
+                                Kelola Tugas
                             </Link>
 
                             <Link
@@ -185,39 +185,42 @@ export default function KelasShow({ section }: Props) {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
                                 <DropdownMenuItem asChild>
-                                    <Link href={route('guru.kelas.create', section.id)} className="flex items-center w-full">
+                                    <Link href={route('guru.kelas.create', section.id)} className="flex w-full items-center">
                                         <UserPlus className="mr-2 h-4 w-4 text-blue-600" />
                                         <span>Tambah Siswa</span>
                                     </Link>
                                 </DropdownMenuItem>
-                                
+
                                 <DropdownMenuSeparator />
-                                
+
                                 <DropdownMenuItem asChild>
-                                    <Link href={route('guru.materi.index', section.id)} className="flex items-center w-full">
+                                    <Link href={route('guru.materi.index', section.id)} className="flex w-full items-center">
                                         <BookOpen className="mr-2 h-4 w-4 text-green-600" />
                                         <span>Kelola Materi</span>
                                     </Link>
                                 </DropdownMenuItem>
-                                
+
                                 <DropdownMenuItem asChild>
-                                    <Link href={route('guru.materi.create', { section: section.id, section_id: section.id })} className="flex items-center w-full">
+                                    <Link
+                                        href={route('guru.materi.create', { section: section.id, section_id: section.id })}
+                                        className="flex w-full items-center"
+                                    >
                                         <Plus className="mr-2 h-4 w-4 text-purple-600" />
-                                        <span>Tambah Materi</span>
+                                        <span>Kelola Tugas</span>
                                     </Link>
                                 </DropdownMenuItem>
-                                
+
                                 <DropdownMenuSeparator />
-                                
+
                                 <DropdownMenuItem asChild>
-                                    <Link href={route('guru.absensi.index', section.id)} className="flex items-center w-full">
+                                    <Link href={route('guru.absensi.index', section.id)} className="flex w-full items-center">
                                         <Calendar className="mr-2 h-4 w-4 text-yellow-600" />
                                         <span>Kelola Absensi</span>
                                     </Link>
                                 </DropdownMenuItem>
-                                
+
                                 <DropdownMenuItem asChild>
-                                    <Link href={route('guru.kelas.export', section.id)} className="flex items-center w-full">
+                                    <Link href={route('guru.kelas.export', section.id)} className="flex w-full items-center">
                                         <Download className="mr-2 h-4 w-4 text-gray-600" />
                                         <span>Export CSV</span>
                                     </Link>
