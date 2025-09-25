@@ -31,6 +31,7 @@ Dokumen ini menjelaskan **struktur folder**, **fitur per role (siswa, guru, admi
     2. Buka **Materi** & **Tugas** kelas yang diikuti → submit tugas (teks/file/link).
     3. Cek **Nilai** dan **Absensi** (rekap bulanan).
     4. Gunakan **Chatbot** untuk tanya hal teknis/akademik (deadline terdekat, jadwal hari ini, dsb).
+    5. **Registrasi User** hanya bisa dilakukan oleh administrator.
 
 ### 2) Guru
 
@@ -41,6 +42,7 @@ Dokumen ini menjelaskan **struktur folder**, **fitur per role (siswa, guru, admi
     3. Input **Nilai** (per tugas/kuis/ujian) dan **Absensi** per pertemuan.
     4. Kirim **Pengumuman** ke kelas.
     5. Gunakan **Chatbot** (mis. generate rubrik 4 level, draft pengumuman, ringkas materi).
+    6. **Registrasi User** hanya bisa dilakukan oleh administrator.
 
 ### 3) Admin
 

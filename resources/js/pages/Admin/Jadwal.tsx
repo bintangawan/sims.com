@@ -23,35 +23,14 @@ import AppLayout from '@/layouts/app-layout';
 import { SharedData } from '@/types';
 import { Head, router, useForm } from '@inertiajs/react';
 import { Clock, Edit, Plus, Search, Trash2 } from 'lucide-react';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-interface Section {
-    id: number;
-    subject: {
-        id: number;
-        nama: string;
-        kode: string;
-    };
-    guru: {
-        id: number;
-        name: string;
-    };
-    term: {
-        id: number;
-        nama: string;
-        tahun: string;
-        aktif: boolean;
-    };
-    kapasitas: number;
-    jadwal_json: ScheduleItem[];
-    created_at: string;
-}
-
+/* ===================== Types ===================== */
 interface ScheduleItem {
-    hari: string;
-    jam_mulai: string;
-    jam_selesai: string;
+    hari: 'senin' | 'selasa' | 'rabu' | 'kamis' | 'jumat' | 'sabtu' | '';
+    jam_mulai: string; // "HH:mm"
+    jam_selesai: string; // "HH:mm"
     ruangan: string;
 }
 
@@ -73,29 +52,36 @@ interface Guru {
     name: string;
 }
 
+interface Section {
+    id: number;
+    subject: Subject;
+    guru: Guru;
+    term: Term;
+    kapasitas: number;
+    jadwal_json: ScheduleItem[];
+    created_at: string;
+}
+
 interface PaginationLink {
     url: string | null;
-    label: string;
+    label: string; // bisa "&laquo;" atau angka string
     active: boolean;
 }
 
-interface PaginationMeta {
+/** Bentuk standar paginator Laravel (tanpa meta wrapper) */
+interface LaravelPaginator<T> {
+    data: T[];
     current_page: number;
-    from: number;
     last_page: number;
-    links: PaginationLink[];
-    path: string;
-    per_page: number;
-    to: number;
+    from: number | null;
+    to: number | null;
     total: number;
+    links: PaginationLink[];
+    // properti lain diabaikan
 }
 
 interface Props extends SharedData {
-    sections: {
-        data: Section[];
-        links: PaginationLink[];
-        meta: PaginationMeta;
-    };
+    sections: LaravelPaginator<Section>;
     terms: Term[];
     subjects: Subject[];
     gurus: Guru[];
@@ -106,7 +92,7 @@ interface Props extends SharedData {
     };
 }
 
-const DAYS = [
+const DAYS: Array<{ value: ScheduleItem['hari']; label: string }> = [
     { value: 'senin', label: 'Senin' },
     { value: 'selasa', label: 'Selasa' },
     { value: 'rabu', label: 'Rabu' },
@@ -115,8 +101,7 @@ const DAYS = [
     { value: 'sabtu', label: 'Sabtu' },
 ];
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Confirm Delete Dialog (copy gaya dari Index.tsx)
+/* ===================== Confirm Delete ===================== */
 type ConfirmDeleteDialogProps = {
     trigger: ReactNode;
     title: string;
@@ -136,7 +121,6 @@ function ConfirmDeleteDialog({
 }: ConfirmDeleteDialogProps) {
     const [typed, setTyped] = useState('');
     const [agreed, setAgreed] = useState(false);
-
     const canSubmit = typed.trim().toUpperCase() === confirmWord && agreed && !isLoading;
 
     return (
@@ -177,14 +161,22 @@ function ConfirmDeleteDialog({
     );
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Page
+/* ===================== Page ===================== */
+type FormData = {
+    subject_id: string;
+    guru_id: string;
+    term_id: string;
+    kapasitas: string;
+    jadwal: ScheduleItem[];
+};
+
 export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, filters }: Props) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingSection, setEditingSection] = useState<Section | null>(null);
-    const [searchTerm, setSearchTerm] = useState(filters.search || '');
-    const [selectedTerm, setSelectedTerm] = useState(filters.term_id || activeTerm?.id?.toString() || '');
+
+    const [searchTerm, setSearchTerm] = useState<string>(filters.search ?? '');
+    const [selectedTerm, setSelectedTerm] = useState<string>(filters.term_id ?? activeTerm?.id?.toString() ?? '');
 
     const {
         data,
@@ -195,35 +187,41 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
         processing,
         errors,
         reset,
-    } = useForm({
+    } = useForm<FormData>({
         subject_id: '',
         guru_id: '',
-        term_id: activeTerm?.id || '',
+        term_id: activeTerm?.id?.toString() ?? '',
         kapasitas: '',
-        jadwal: [{ hari: '', jam_mulai: '', jam_selesai: '', ruangan: '' }] as ScheduleItem[],
+        jadwal: [{ hari: '', jam_mulai: '', jam_selesai: '', ruangan: '' }],
     });
 
-    const handleSearch = () => {
+    const pagination = useMemo(
+        () => ({
+            current_page: sections.current_page,
+            last_page: sections.last_page,
+            from: sections.from,
+            to: sections.to,
+            total: sections.total,
+            links: sections.links,
+        }),
+        [sections],
+    );
+
+    const handleSearch = (): void => {
         router.get(
             route('admin.jadwal.index'),
-            {
-                search: searchTerm,
-                term_id: selectedTerm,
-            },
-            {
-                preserveState: true,
-                replace: true,
-            },
+            { search: searchTerm, term_id: selectedTerm },
+            { preserveState: true, replace: true, preserveScroll: true },
         );
     };
 
-    const handleReset = () => {
+    const handleReset = (): void => {
         setSearchTerm('');
-        setSelectedTerm(activeTerm?.id?.toString() || '');
-        router.get(route('admin.jadwal.index'));
+        setSelectedTerm(activeTerm?.id?.toString() ?? '');
+        router.get(route('admin.jadwal.index'), {}, { replace: true });
     };
 
-    const handleCreate = () => {
+    const handleCreate = (): void => {
         post(route('admin.jadwal.store'), {
             onSuccess: () => {
                 setIsCreateOpen(false);
@@ -233,24 +231,27 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
             onError: () => {
                 toast.error('Gagal menambahkan jadwal');
             },
+            preserveScroll: true,
         });
     };
 
-    const handleEdit = (section: Section) => {
+    const handleEdit = (section: Section): void => {
         setEditingSection(section);
         setData({
             subject_id: section.subject.id.toString(),
             guru_id: section.guru.id.toString(),
             term_id: section.term.id.toString(),
-            kapasitas: section.kapasitas?.toString() || '',
-            jadwal: section.jadwal_json || [{ hari: '', jam_mulai: '', jam_selesai: '', ruangan: '' }],
+            kapasitas: section.kapasitas?.toString() ?? '',
+            jadwal:
+                section.jadwal_json && section.jadwal_json.length > 0
+                    ? section.jadwal_json
+                    : [{ hari: '', jam_mulai: '', jam_selesai: '', ruangan: '' }],
         });
         setIsEditOpen(true);
     };
 
-    const handleUpdate = () => {
+    const handleUpdate = (): void => {
         if (!editingSection) return;
-
         put(route('admin.jadwal.update', editingSection.id), {
             onSuccess: () => {
                 setIsEditOpen(false);
@@ -261,30 +262,36 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
             onError: () => {
                 toast.error('Gagal memperbarui jadwal');
             },
+            preserveScroll: true,
         });
     };
 
-    // ❌ HAPUS versi confirm() bawaan browser
-    // const handleDelete = (section: Section) => { ... }
-
-    const addScheduleItem = () => {
+    const addScheduleItem = (): void => {
         setData('jadwal', [...data.jadwal, { hari: '', jam_mulai: '', jam_selesai: '', ruangan: '' }]);
     };
 
-    const removeScheduleItem = (index: number) => {
-        const newJadwal = data.jadwal.filter((_, i) => i !== index);
-        setData('jadwal', newJadwal);
+    const removeScheduleItem = (index: number): void => {
+        const next = data.jadwal.filter((_, i) => i !== index);
+        setData('jadwal', next.length ? next : [{ hari: '', jam_mulai: '', jam_selesai: '', ruangan: '' }]);
     };
 
-    const updateScheduleItem = (index: number, field: keyof ScheduleItem, value: string) => {
-        const newJadwal = [...data.jadwal];
-        newJadwal[index] = { ...newJadwal[index], [field]: value };
-        setData('jadwal', newJadwal);
+    const updateScheduleItem = (index: number, field: keyof ScheduleItem, value: string): void => {
+        const next = [...data.jadwal];
+        next[index] = { ...next[index], [field]: value } as ScheduleItem;
+        setData('jadwal', next);
     };
 
-    const getDayLabel = (day: string) => {
-        const dayObj = DAYS.find((d) => d.value === day);
-        return dayObj ? dayObj.label : day;
+    const getDayLabel = (day: ScheduleItem['hari']): string => {
+        const found = DAYS.find((d) => d.value === day);
+        return found ? found.label : day;
+    };
+
+    const gotoPage = (page: number | string): void => {
+        router.get(
+            route('admin.jadwal.index'),
+            { page, search: searchTerm, term_id: selectedTerm },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
     };
 
     return (
@@ -297,6 +304,8 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <CardTitle>Daftar Jadwal</CardTitle>
+
+                                {/* Create Dialog */}
                                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                                     <DialogTrigger asChild>
                                         <Button>
@@ -308,11 +317,12 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                         <DialogHeader>
                                             <DialogTitle>Tambah Jadwal Baru</DialogTitle>
                                         </DialogHeader>
+
                                         <div className="grid gap-4 py-4">
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                                 <div>
                                                     <Label htmlFor="subject_id">Mata Pelajaran</Label>
-                                                    <Select value={data.subject_id} onValueChange={(value) => setData('subject_id', value)}>
+                                                    <Select value={data.subject_id} onValueChange={(v) => setData('subject_id', v)}>
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Pilih mata pelajaran" />
                                                         </SelectTrigger>
@@ -326,9 +336,10 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                                     </Select>
                                                     {errors.subject_id && <p className="mt-1 text-sm text-red-500">{errors.subject_id}</p>}
                                                 </div>
+
                                                 <div>
                                                     <Label htmlFor="guru_id">Guru</Label>
-                                                    <Select value={data.guru_id} onValueChange={(value) => setData('guru_id', value)}>
+                                                    <Select value={data.guru_id} onValueChange={(v) => setData('guru_id', v)}>
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Pilih guru" />
                                                         </SelectTrigger>
@@ -343,10 +354,11 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                                     {errors.guru_id && <p className="mt-1 text-sm text-red-500">{errors.guru_id}</p>}
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-4">
+
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                                 <div>
                                                     <Label htmlFor="term_id">Semester</Label>
-                                                    <Select value={data.term_id.toString()} onValueChange={(value) => setData('term_id', value)}>
+                                                    <Select value={data.term_id} onValueChange={(v) => setData('term_id', v)}>
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Pilih semester" />
                                                         </SelectTrigger>
@@ -360,6 +372,7 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                                     </Select>
                                                     {errors.term_id && <p className="mt-1 text-sm text-red-500">{errors.term_id}</p>}
                                                 </div>
+
                                                 <div>
                                                     <Label htmlFor="kapasitas">Kapasitas</Label>
                                                     <Input
@@ -381,14 +394,12 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                                         Tambah Jadwal
                                                     </Button>
                                                 </div>
+
                                                 {data.jadwal.map((item, index) => (
-                                                    <div key={index} className="mb-2 grid grid-cols-5 gap-2 rounded border p-3">
+                                                    <div key={index} className="mb-2 grid grid-cols-1 gap-2 rounded border p-3 md:grid-cols-5">
                                                         <div>
                                                             <Label className="text-xs">Hari</Label>
-                                                            <Select
-                                                                value={item.hari}
-                                                                onValueChange={(value) => updateScheduleItem(index, 'hari', value)}
-                                                            >
+                                                            <Select value={item.hari} onValueChange={(v) => updateScheduleItem(index, 'hari', v)}>
                                                                 <SelectTrigger className="h-8">
                                                                     <SelectValue placeholder="Hari" />
                                                                 </SelectTrigger>
@@ -445,6 +456,7 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                                 {errors.jadwal && <p className="mt-1 text-sm text-red-500">{errors.jadwal}</p>}
                                             </div>
                                         </div>
+
                                         <div className="flex justify-end gap-2">
                                             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                                                 Batal
@@ -457,9 +469,10 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                 </Dialog>
                             </div>
                         </CardHeader>
+
                         <CardContent>
-                            {/* Filter Section */}
-                            <div className="mb-6 flex gap-4">
+                            {/* Filter */}
+                            <div className="mb-6 flex flex-col gap-4 md:flex-row">
                                 <div className="flex-1">
                                     <div className="relative">
                                         <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
@@ -468,11 +481,12 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                             className="pl-10"
-                                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                                         />
                                     </div>
                                 </div>
-                                <div className="w-48">
+
+                                <div className="w-full md:w-56">
                                     <Select value={selectedTerm} onValueChange={setSelectedTerm}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Pilih semester" />
@@ -486,13 +500,14 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                         </SelectContent>
                                     </Select>
                                 </div>
+
                                 <Button onClick={handleSearch}>Cari</Button>
                                 <Button variant="outline" onClick={handleReset}>
                                     Reset
                                 </Button>
                             </div>
 
-                            {/* Table */}
+                            {/* Tabel */}
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -529,13 +544,13 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                                 <TableCell>{section.kapasitas || '-'}</TableCell>
                                                 <TableCell>
                                                     <div className="max-w-xs">
-                                                        {section.jadwal_json && section.jadwal_json.length > 0 ? (
-                                                            section.jadwal_json.map((jadwal, index) => (
-                                                                <div key={index} className="mb-1 text-sm">
+                                                        {section.jadwal_json?.length ? (
+                                                            section.jadwal_json.map((j, i) => (
+                                                                <div key={i} className="mb-1 text-sm">
                                                                     <Clock className="mr-1 inline h-3 w-3" />
-                                                                    {getDayLabel(jadwal.hari)} {jadwal.jam_mulai}-{jadwal.jam_selesai}
+                                                                    {getDayLabel(j.hari)} {j.jam_mulai}-{j.jam_selesai}
                                                                     <br />
-                                                                    <span className="ml-4 text-gray-500">{jadwal.ruangan}</span>
+                                                                    <span className="ml-4 text-gray-500">{j.ruangan}</span>
                                                                 </div>
                                                             ))
                                                         ) : (
@@ -549,7 +564,6 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                                             <Edit className="h-4 w-4" />
                                                         </Button>
 
-                                                        {/* ✅ Pakai ConfirmDeleteDialog */}
                                                         <ConfirmDeleteDialog
                                                             trigger={
                                                                 <Button variant="destructive" size="sm">
@@ -564,6 +578,7 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                                                 destroy(route('admin.jadwal.destroy', section.id), {
                                                                     onSuccess: () => toast.success('Jadwal berhasil dihapus'),
                                                                     onError: () => toast.error('Gagal menghapus jadwal'),
+                                                                    preserveScroll: true,
                                                                 })
                                                             }
                                                         />
@@ -574,6 +589,51 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                     )}
                                 </TableBody>
                             </Table>
+
+                            {/* Pagination */}
+                            <div className="mt-6 flex flex-wrap items-center gap-3 sm:justify-start">
+                                {' '}
+                                <div className="text-sm text-muted-foreground">
+                                    Menampilkan <span className="font-medium">{pagination.from ?? 0}</span>–
+                                    <span className="font-medium">{pagination.to ?? 0}</span> dari{' '}
+                                    <span className="font-medium">{pagination.total}</span> data
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1">
+                                    {/* Prev */}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={pagination.current_page <= 1}
+                                        onClick={() => gotoPage(pagination.current_page - 1)}
+                                    >
+                                        &laquo; Prev
+                                    </Button>
+
+                                    {/* Numbers only */}
+                                    {pagination.links
+                                        .filter((l) => /^\d+$/.test(l.label))
+                                        .map((link) => (
+                                            <Button
+                                                key={link.label}
+                                                variant={link.active ? 'default' : 'outline'}
+                                                size="sm"
+                                                onClick={() => gotoPage(link.label)}
+                                            >
+                                                {link.label}
+                                            </Button>
+                                        ))}
+
+                                    {/* Next */}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={pagination.current_page >= pagination.last_page}
+                                        onClick={() => gotoPage(pagination.current_page + 1)}
+                                    >
+                                        Next &raquo;
+                                    </Button>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -583,11 +643,12 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                             <DialogHeader>
                                 <DialogTitle>Edit Jadwal</DialogTitle>
                             </DialogHeader>
+
                             <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div>
                                         <Label htmlFor="edit_subject_id">Mata Pelajaran</Label>
-                                        <Select value={data.subject_id} onValueChange={(value) => setData('subject_id', value)}>
+                                        <Select value={data.subject_id} onValueChange={(v) => setData('subject_id', v)}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Pilih mata pelajaran" />
                                             </SelectTrigger>
@@ -601,9 +662,10 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                         </Select>
                                         {errors.subject_id && <p className="mt-1 text-sm text-red-500">{errors.subject_id}</p>}
                                     </div>
+
                                     <div>
                                         <Label htmlFor="edit_guru_id">Guru</Label>
-                                        <Select value={data.guru_id} onValueChange={(value) => setData('guru_id', value)}>
+                                        <Select value={data.guru_id} onValueChange={(v) => setData('guru_id', v)}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Pilih guru" />
                                             </SelectTrigger>
@@ -618,10 +680,11 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                         {errors.guru_id && <p className="mt-1 text-sm text-red-500">{errors.guru_id}</p>}
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div>
                                         <Label htmlFor="edit_term_id">Semester</Label>
-                                        <Select value={data.term_id.toString()} onValueChange={(value) => setData('term_id', value)}>
+                                        <Select value={data.term_id} onValueChange={(v) => setData('term_id', v)}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Pilih semester" />
                                             </SelectTrigger>
@@ -635,6 +698,7 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                         </Select>
                                         {errors.term_id && <p className="mt-1 text-sm text-red-500">{errors.term_id}</p>}
                                     </div>
+
                                     <div>
                                         <Label htmlFor="edit_kapasitas">Kapasitas</Label>
                                         <Input
@@ -656,11 +720,12 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                             Tambah Jadwal
                                         </Button>
                                     </div>
+
                                     {data.jadwal.map((item, index) => (
-                                        <div key={index} className="mb-2 grid grid-cols-5 gap-2 rounded border p-3">
+                                        <div key={index} className="mb-2 grid grid-cols-1 gap-2 rounded border p-3 md:grid-cols-5">
                                             <div>
                                                 <Label className="text-xs">Hari</Label>
-                                                <Select value={item.hari} onValueChange={(value) => updateScheduleItem(index, 'hari', value)}>
+                                                <Select value={item.hari} onValueChange={(v) => updateScheduleItem(index, 'hari', v)}>
                                                     <SelectTrigger className="h-8">
                                                         <SelectValue placeholder="Hari" />
                                                     </SelectTrigger>
@@ -717,6 +782,7 @@ export default function Jadwal({ sections, terms, subjects, gurus, activeTerm, f
                                     {errors.jadwal && <p className="mt-1 text-sm text-red-500">{errors.jadwal}</p>}
                                 </div>
                             </div>
+
                             <div className="flex justify-end gap-2">
                                 <Button variant="outline" onClick={() => setIsEditOpen(false)}>
                                     Batal

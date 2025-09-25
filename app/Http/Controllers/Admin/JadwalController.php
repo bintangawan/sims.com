@@ -25,15 +25,21 @@ class JadwalController extends Controller
                 return $q->where('term_id', $activeTerm?->id);
             })
             ->when($request->search, function($q, $search) {
-                return $q->whereHas('subject', function($sq) use ($search) {
-                    $sq->where('nama', 'like', "%{$search}%")
-                      ->orWhere('kode', 'like', "%{$search}%");
-                })->orWhereHas('guru', function($gq) use ($search) {
-                    $gq->where('name', 'like', "%{$search}%");
+                $q->where(function($qq) use ($search) {
+                    $qq->whereHas('subject', function($sq) use ($search) {
+                        $sq->where('nama', 'like', "%{$search}%")
+                        ->orWhere('kode', 'like', "%{$search}%");
+                    })->orWhereHas('guru', function($gq) use ($search) {
+                        $gq->where('name', 'like', "%{$search}%");
+                    });
                 });
             });
 
-        $sections = $query->paginate(15);
+
+        $sections = $query->orderBy('id','desc')
+            ->paginate(15)
+            ->appends($request->only('search','term_id')); // 👈 penting untuk bawa query di links
+
         
         $terms = Term::orderBy('tahun', 'desc')->get();
         $subjects = Subject::orderBy('nama')->get();

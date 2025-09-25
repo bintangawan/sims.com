@@ -34,8 +34,8 @@ interface Submission {
 
 interface Assignment {
     id: number;
-    title: string;
-    description: string;
+    judul: string;
+    deskripsi: string;
     deadline: string;
     section_id: number;
     section: Section;
@@ -154,7 +154,7 @@ export default function Index({ assignments, subjects, filters }: Props) {
                                 <Card key={assignment.id} className="overflow-hidden">
                                     <CardHeader className="pb-2">
                                         <div className="flex items-start justify-between">
-                                            <CardTitle className="text-lg font-medium">{assignment.title}</CardTitle>
+                                            <CardTitle className="text-lg font-medium">{assignment.judul}</CardTitle>
                                             {getStatusBadge(assignment.submission_status)}
                                         </div>
                                         <p className="text-sm text-gray-500">
@@ -162,7 +162,7 @@ export default function Index({ assignments, subjects, filters }: Props) {
                                         </p>
                                     </CardHeader>
                                     <CardContent>
-                                        <p className="mb-4 line-clamp-2 text-sm">{assignment.description}</p>
+                                        <p className="mb-4 line-clamp-2 text-sm">{assignment.deskripsi}</p>
                                         <div className="flex items-center justify-between">
                                             <div className="text-sm">
                                                 <p className="font-medium">Deadline:</p>

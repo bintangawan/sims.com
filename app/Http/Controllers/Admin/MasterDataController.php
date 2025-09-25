@@ -18,30 +18,58 @@ use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithValidation;
-use Illuminate\Support\Collection;
 
 class MasterDataController extends Controller
 {
     public function index()
     {
         $terms = Term::orderBy('tahun', 'desc')->get();
-        $subjects = Subject::orderBy('nama')->get();
-        $sections = Section::with(['subject', 'guru', 'term'])
+
+        // Subjects paginator
+        $subjectsPaginator = Subject::orderBy('nama')
+            ->paginate(10, ['*'], 'subjects_page')
+            ->appends(request()->only(['subjects_page','sections_page']));
+
+        $subjects = [
+            'data' => $subjectsPaginator->items(),
+            'meta' => [
+                'current_page' => $subjectsPaginator->currentPage(),
+                'from' => $subjectsPaginator->firstItem(),
+                'to' => $subjectsPaginator->lastItem(),
+                'last_page' => $subjectsPaginator->lastPage(),
+                'total' => $subjectsPaginator->total(),
+            ],
+            'links' => $subjectsPaginator->linkCollection(),
+        ];
+
+        // Sections paginator
+        $sectionsPaginator = Section::with(['subject', 'guru', 'term'])
             ->orderBy('id', 'desc')
-            ->paginate(10);
-        
-        // Tambahkan data guru untuk dropdown
-        $gurus = User::whereHas('roles', function($q) {
-            $q->where('name', 'guru');
-        })->with('guruProfile')->get()->map(function($user) {
-            return [
+            ->paginate(10, ['*'], 'sections_page')
+            ->appends(request()->only(['subjects_page','sections_page']));
+
+        $sections = [
+            'data' => $sectionsPaginator->items(),
+            'meta' => [
+                'current_page' => $sectionsPaginator->currentPage(),
+                'from' => $sectionsPaginator->firstItem(),
+                'to' => $sectionsPaginator->lastItem(),
+                'last_page' => $sectionsPaginator->lastPage(),
+                'total' => $sectionsPaginator->total(),
+            ],
+            'links' => $sectionsPaginator->linkCollection(),
+        ];
+
+        $gurus = User::whereHas('roles', fn($q) => $q->where('name', 'guru'))
+            ->with('guruProfile')
+            ->get()
+            ->map(fn($user) => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'nidn' => $user->guruProfile?->nidn,
                 'mapel_keahlian' => $user->guruProfile?->mapel_keahlian
-            ];
-        });
-    
+            ]);
+
         return Inertia::render('Admin/MasterData', [
             'terms' => $terms,
             'subjects' => $subjects,
@@ -50,6 +78,7 @@ class MasterDataController extends Controller
         ]);
     }
 
+    // ───────────────────────────────────────────────
     // Term Management
     public function storeTerm(Request $request)
     {
@@ -66,7 +95,6 @@ class MasterDataController extends Controller
             return back()->withErrors($validator)->withInput();
         }
 
-        // Check unique combination
         $exists = Term::where('tahun', $request->tahun)
             ->where('semester', $request->semester)
             ->exists();
@@ -79,7 +107,6 @@ class MasterDataController extends Controller
 
         try {
             DB::transaction(function() use ($request) {
-                // If this term is set as active, deactivate others
                 if ($request->aktif) {
                     Term::where('aktif', true)->update(['aktif' => false]);
                 }
@@ -109,7 +136,6 @@ class MasterDataController extends Controller
             return back()->withErrors($validator)->withInput();
         }
 
-        // Check unique combination (exclude current term)
         $exists = Term::where('tahun', $request->tahun)
             ->where('semester', $request->semester)
             ->where('id', '!=', $term->id)
@@ -123,7 +149,6 @@ class MasterDataController extends Controller
 
         try {
             DB::transaction(function() use ($request, $term) {
-                // If this term is set as active, deactivate others
                 if ($request->aktif) {
                     Term::where('id', '!=', $term->id)
                         ->where('aktif', true)
@@ -146,7 +171,6 @@ class MasterDataController extends Controller
     public function destroyTerm(Term $term)
     {
         try {
-            // Check if term has sections
             if ($term->sections()->count() > 0) {
                 return back()->withErrors([
                     'error' => 'Tidak dapat menghapus tahun ajaran yang sudah memiliki kelas.'
@@ -164,10 +188,7 @@ class MasterDataController extends Controller
     {
         try {
             DB::transaction(function() use ($term) {
-                // Deactivate all terms
                 Term::where('aktif', true)->update(['aktif' => false]);
-                
-                // Activate selected term
                 $term->update(['aktif' => true]);
             });
 
@@ -177,6 +198,7 @@ class MasterDataController extends Controller
         }
     }
 
+    // ───────────────────────────────────────────────
     // Subject Management
     public function storeSubject(Request $request)
     {
@@ -231,7 +253,6 @@ class MasterDataController extends Controller
     public function destroySubject(Subject $subject)
     {
         try {
-            // Check if subject has sections
             if ($subject->sections()->count() > 0) {
                 return back()->withErrors([
                     'error' => 'Tidak dapat menghapus mata pelajaran yang sudah memiliki kelas.'
@@ -245,6 +266,7 @@ class MasterDataController extends Controller
         }
     }
 
+    // ───────────────────────────────────────────────
     // Section Management
     public function storeSection(Request $request)
     {
@@ -307,7 +329,6 @@ class MasterDataController extends Controller
     public function destroySection(Section $section)
     {
         try {
-            // Check if section has students, materials, or assignments
             if ($section->students()->count() > 0) {
                 return back()->withErrors([
                     'error' => 'Tidak dapat menghapus kelas yang sudah memiliki siswa.'
@@ -326,7 +347,6 @@ class MasterDataController extends Controller
             return back()->withErrors(['error' => 'Gagal menghapus kelas.']);
         }
     }
-
     // Subject Import
     public function importSubjects(Request $request)
     {

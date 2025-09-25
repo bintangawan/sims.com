@@ -25,8 +25,8 @@ interface Section {
 
 interface Assignment {
     id: number;
-    title: string;
-    description: string;
+    judul: string;
+    deskripsi: string;
     deadline: string;
     section_id: number;
     section: Section;
@@ -68,7 +68,7 @@ export default function Submit({ assignment, isOverdue }: Props) {
 
     return (
         <AppLayout>
-            <Head title={`Kumpulkan Tugas: ${assignment.title}`} />
+            <Head title={`Kumpulkan Tugas: ${assignment.judul}`} />
 
             <div className="py-6">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -86,10 +86,10 @@ export default function Submit({ assignment, isOverdue }: Props) {
                         <div className="md:col-span-2">
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>{assignment.title}</CardTitle>
+                                    <CardTitle>{assignment.judul}</CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: assignment.description }} />
+                                    <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: assignment.deskripsi }} />
 
                                     <div className="mt-6">
                                         <p className="text-sm text-gray-600">

@@ -75,8 +75,8 @@ interface Guru {
 
 interface Props {
     terms: Term[];
-    subjects: Subject[];
-    sections: PaginatedData<Section>;
+    subjects: PaginatedData<Subject>; // ⬅️ paginator
+    sections: PaginatedData<Section>; // ⬅️ paginator
     gurus: Guru[];
 }
 
@@ -303,7 +303,7 @@ function ImportDialog({ open, onOpenChange, uploadUrl, title, onDone }: ImportDi
 // ────────────────────────────────────────────────────────────────────────────────
 
 export default function MasterData({ terms, subjects, sections, gurus }: Props) {
-    const [activeTab, setActiveTab] = useState('terms');
+    const [activeTab, setActiveTab] = useState<'terms' | 'subjects' | 'sections'>('terms');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Term | Subject | Section | undefined>(undefined);
     const [formData, setFormData] = useState<FormDataType>({});
@@ -317,11 +317,8 @@ export default function MasterData({ terms, subjects, sections, gurus }: Props) 
     };
 
     const handleSubmit = () => {
-        // method diikat ke union literal agar aman dipakai sebagai indeks ke router
         const method: 'put' | 'post' = editingItem ? 'put' : 'post';
-
-        // di cabang true, TS sudah tahu editingItem bukan undefined dan punya id
-        const endpoint = editingItem ? `/admin/master-data/${activeTab}/${editingItem.id}` : `/admin/master-data/${activeTab}`;
+        const endpoint = editingItem ? `/admin/master-data/${activeTab}/${(editingItem as { id: number }).id}` : `/admin/master-data/${activeTab}`;
 
         router[method](endpoint, formData, {
             onSuccess: () => {
@@ -367,7 +364,6 @@ export default function MasterData({ terms, subjects, sections, gurus }: Props) 
     const openDialog = (item?: Term | Subject | Section) => {
         setEditingItem(item);
         if (item) {
-            // Convert item to form data format
             const formDataObj: FormDataType = {};
             Object.keys(item).forEach((key) => {
                 const value = (item as Record<string, unknown>)[key];
@@ -382,6 +378,23 @@ export default function MasterData({ terms, subjects, sections, gurus }: Props) 
         setIsDialogOpen(true);
     };
 
+    // Pagination helpers — pisah query param supaya tidak bentrok
+    const gotoSubjectsPage = (page: number | string) => {
+        router.get(
+            '/admin/master-data',
+            { subjects_page: page, sections_page: sections.meta.current_page },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    };
+
+    const gotoSectionsPage = (page: number | string) => {
+        router.get(
+            '/admin/master-data',
+            { sections_page: page, subjects_page: subjects.meta.current_page },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    };
+
     return (
         <AppLayout>
             <Head title="Master Data" />
@@ -392,7 +405,7 @@ export default function MasterData({ terms, subjects, sections, gurus }: Props) 
                     <p className="text-muted-foreground">Kelola data master sistem (Term, Mata Pelajaran, Kelas)</p>
                 </div>
 
-                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
                     <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="terms">Term Akademik</TabsTrigger>
                         <TabsTrigger value="subjects">Mata Pelajaran</TabsTrigger>
@@ -508,7 +521,7 @@ export default function MasterData({ terms, subjects, sections, gurus }: Props) 
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {subjects.map((subject) => (
+                                        {subjects.data.map((subject) => (
                                             <TableRow key={subject.id}>
                                                 <TableCell className="font-medium">{subject.kode}</TableCell>
                                                 <TableCell>{subject.nama}</TableCell>
@@ -537,6 +550,48 @@ export default function MasterData({ terms, subjects, sections, gurus }: Props) 
                                         ))}
                                     </TableBody>
                                 </Table>
+
+                                {/* Pagination Subjects */}
+                                <div className="mt-4 flex flex-wrap items-center gap-3">
+                                    <div className="text-sm text-muted-foreground">
+                                        Menampilkan <span className="font-medium">{subjects.meta.from ?? 0}</span>–
+                                        <span className="font-medium">{subjects.meta.to ?? 0}</span> dari
+                                        <span className="font-medium"> {subjects.meta.total}</span> data
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-1">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={subjects.meta.current_page <= 1}
+                                            onClick={() => gotoSubjectsPage(subjects.meta.current_page - 1)}
+                                        >
+                                            &laquo; Prev
+                                        </Button>
+
+                                        {subjects.links
+                                            .filter((l) => /^\d+$/.test(l.label))
+                                            .map((link) => (
+                                                <Button
+                                                    key={`subj-${link.label}`}
+                                                    variant={link.active ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => gotoSubjectsPage(link.label)}
+                                                >
+                                                    {link.label}
+                                                </Button>
+                                            ))}
+
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={subjects.meta.current_page >= subjects.meta.last_page}
+                                            onClick={() => gotoSubjectsPage(subjects.meta.current_page + 1)}
+                                        >
+                                            Next &raquo;
+                                        </Button>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -613,6 +668,48 @@ export default function MasterData({ terms, subjects, sections, gurus }: Props) 
                                         ))}
                                     </TableBody>
                                 </Table>
+
+                                {/* Pagination Sections */}
+                                <div className="mt-4 flex flex-wrap items-center gap-3">
+                                    <div className="text-sm text-muted-foreground">
+                                        Menampilkan <span className="font-medium">{sections.meta.from ?? 0}</span>–
+                                        <span className="font-medium">{sections.meta.to ?? 0}</span> dari
+                                        <span className="font-medium"> {sections.meta.total}</span> data
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-1">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={sections.meta.current_page <= 1}
+                                            onClick={() => gotoSectionsPage(sections.meta.current_page - 1)}
+                                        >
+                                            &laquo; Prev
+                                        </Button>
+
+                                        {sections.links
+                                            .filter((l) => /^\d+$/.test(l.label))
+                                            .map((link) => (
+                                                <Button
+                                                    key={`sec-${link.label}`}
+                                                    variant={link.active ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => gotoSectionsPage(link.label)}
+                                                >
+                                                    {link.label}
+                                                </Button>
+                                            ))}
+
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={sections.meta.current_page >= sections.meta.last_page}
+                                            onClick={() => gotoSectionsPage(sections.meta.current_page + 1)}
+                                        >
+                                            Next &raquo;
+                                        </Button>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -741,7 +838,7 @@ export default function MasterData({ terms, subjects, sections, gurus }: Props) 
                                                 <SelectValue placeholder="Pilih mata pelajaran" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {subjects.map((subject) => (
+                                                {subjects.data.map((subject) => (
                                                     <SelectItem key={subject.id} value={subject.id.toString()}>
                                                         {subject.nama}
                                                     </SelectItem>

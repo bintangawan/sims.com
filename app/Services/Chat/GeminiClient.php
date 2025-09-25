@@ -4,209 +4,288 @@ namespace App\Services\Chat;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Models\ChatConfig;
 
 class GeminiClient
 {
-    private $apiKey;
-    private $baseUrl;
-    private $model;
-    private $maxTokens;
-    private $temperature;
+    private string $apiKey;
+    private string $baseUrl;
+    private string $model;
+    private int $maxTokens;
+    private float $temperature;
+    private float $topP;
+    private int $topK;
 
     public function __construct()
     {
-        $this->apiKey = env('GEMINI_API_KEY');
-        $this->baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-        $this->model = 'gemini-pro';
-        $this->maxTokens = ChatConfig::getValue('gemini.max_tokens', 1000);
-        $this->temperature = ChatConfig::getValue('gemini.temperature', 0.7);
-        
+        // Semua config dari .env (boleh juga via config/services.php jika kamu mau)
+        $this->apiKey      = (string) env('GEMINI_API_KEY', '');
+        $this->baseUrl     = rtrim((string) env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'), '/');
+        $this->model       = (string) env('GEMINI_MODEL', 'gemini-pro');
+        $this->maxTokens   = (int) env('GEMINI_MAX_TOKENS', 1000);
+        $this->temperature = (float) env('GEMINI_TEMPERATURE', 0.7);
+        $this->topP        = (float) env('GEMINI_TOP_P', 0.8);
+        $this->topK        = (int) env('GEMINI_TOP_K', 40);
+
         if (!$this->apiKey) {
             throw new \Exception('GEMINI_API_KEY tidak ditemukan di environment variables');
         }
     }
 
-    public function sendMessage($message, $context = '', $history = [])
+    /**
+     * Backward-compat helper: kirim single prompt tanpa tools.
+     * Tetap gunakan generate() di bawahnya.
+     */
+    public function sendMessage(string $message, string $context = '', array $history = []): string
     {
         try {
-            $url = "{$this->baseUrl}/models/{$this->model}:generateContent";
-            
-            // Build the request payload
-            $contents = [];
-            
-            // Add system context as first message if provided
-            if (!empty($context)) {
-                $contents[] = [
-                    'role' => 'user',
-                    'parts' => [['text' => "SYSTEM CONTEXT: {$context}\n\nMohon ikuti konteks ini dalam semua respons Anda."]]
-                ];
-                $contents[] = [
-                    'role' => 'model',
-                    'parts' => [['text' => 'Saya memahami konteks yang diberikan dan akan mengikutinya dalam respons saya.']]
-                ];
-            }
-            
-            // Add conversation history
-            foreach ($history as $historyItem) {
-                $contents[] = $historyItem;
-            }
-            
-            // Add current message
-            $contents[] = [
-                'role' => 'user',
-                'parts' => [['text' => $message]]
-            ];
+            $contents = $this->buildContents($message, $context, $history);
 
-            $payload = [
-                'contents' => $contents,
-                'generationConfig' => [
-                    'temperature' => $this->temperature,
-                    'maxOutputTokens' => $this->maxTokens,
-                    'topP' => 0.8,
-                    'topK' => 40
-                ],
-                'safetySettings' => [
-                    [
-                        'category' => 'HARM_CATEGORY_HARASSMENT',
-                        'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                    ],
-                    [
-                        'category' => 'HARM_CATEGORY_HATE_SPEECH',
-                        'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                    ],
-                    [
-                        'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-                        'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                    ],
-                    [
-                        'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                        'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                    ]
-                ]
-            ];
+            $resp = $this->generate(
+                contents: $contents,
+                tools: [],
+                toolConfig: [],
+                generationConfig: [] // pakai default dari env
+            );
 
-            $response = Http::timeout(30)
-                ->withHeaders([
-                    'Content-Type' => 'application/json',
-                ])
-                ->post($url, $payload + ['key' => $this->apiKey]);
+            $text = $this->extractText($resp);
+            if ($text !== null) return $text;
 
-            if (!$response->successful()) {
-                Log::error('Gemini API Error', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                    'payload' => $payload
-                ]);
-                
-                throw new \Exception('Gagal mendapatkan respons dari Gemini API: ' . $response->body());
-            }
+            Log::warning('GeminiClient sendMessage: no text in response', ['response' => $resp]);
+            return $this->getFallbackResponse();
 
-            $data = $response->json();
-            
-            if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
-                Log::error('Unexpected Gemini response format', ['response' => $data]);
-                throw new \Exception('Format respons Gemini tidak sesuai');
-            }
-
-            return $data['candidates'][0]['content']['parts'][0]['text'];
-            
         } catch (\Exception $e) {
-            Log::error('GeminiClient error: ' . $e->getMessage(), [
+            Log::error('GeminiClient sendMessage error: ' . $e->getMessage(), [
                 'message' => $message,
-                'context' => $context
+                'context' => $context,
             ]);
-            
-            // Return fallback response
             return $this->getFallbackResponse();
         }
     }
 
-    public function testConnection()
+    /**
+     * API utama untuk ChatController (fase 1).
+     * - Menerima contents (array role/parts)
+     * - Opsional tools & toolConfig untuk function-calling
+     * - Opsional override generationConfig
+     * - Mengembalikan array response mentah dari Gemini
+     */
+    public function generate(
+        array $contents,
+        array $tools = [],
+        array $toolConfig = [],
+        array $generationConfig = []
+    ): array {
+        $url = "{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}";
+
+        $payload = [
+            'contents'          => $contents,
+            'generationConfig'  => $this->mergeGenerationConfig($generationConfig),
+            'safetySettings'    => $this->defaultSafetySettings(),
+        ];
+
+        if (!empty($tools)) {
+            $payload['tools'] = $tools;
+        }
+        if (!empty($toolConfig)) {
+            $payload['toolConfig'] = $toolConfig;
+        }
+
+        $response = Http::timeout(45)
+            ->withHeaders(['Content-Type' => 'application/json'])
+            ->post($url, $payload);
+
+        if (!$response->successful()) {
+            Log::error('Gemini API Error (generate)', [
+                'status'  => $response->status(),
+                'body'    => $response->body(),
+                'payload' => $payload,
+            ]);
+            throw new \Exception('Gagal mendapatkan respons dari Gemini API (generate)');
+        }
+
+        return (array) $response->json();
+    }
+
+    /**
+     * API utama untuk ChatController (fase 2).
+     * - Mengirim ulang contents + blok toolResponses (hasil eksekusi fungsi)
+     * - Mengembalikan array response mentah dari Gemini
+     */
+    public function generateWithToolResponse(
+        array $contents,
+        array $toolResponses,
+        array $generationConfig = []
+    ): array {
+        $url = "{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}";
+
+        $payload = [
+            'contents'         => $contents,
+            'toolResponses'    => $toolResponses,
+            'generationConfig' => $this->mergeGenerationConfig($generationConfig),
+            'safetySettings'   => $this->defaultSafetySettings(),
+        ];
+
+        $response = Http::timeout(45)
+            ->withHeaders(['Content-Type' => 'application/json'])
+            ->post($url, $payload);
+
+        if (!$response->successful()) {
+            Log::error('Gemini API Error (generateWithToolResponse)', [
+                'status'  => $response->status(),
+                'body'    => $response->body(),
+                'payload' => $payload,
+            ]);
+            throw new \Exception('Gagal mendapatkan respons dari Gemini API (generateWithToolResponse)');
+        }
+
+        return (array) $response->json();
+    }
+
+    /** =================== UTILITIES =================== */
+
+    /**
+     * Bangun contents dari context + history + current message.
+     */
+    private function buildContents(string $message, string $context = '', array $history = []): array
     {
-        try {
-            $response = $this->sendMessage(
-                'Halo, ini adalah tes koneksi. Mohon balas dengan "Koneksi berhasil".',
-                'Anda adalah asisten AI untuk SIMS. Jawab dengan singkat dan jelas.'
-            );
-            
-            return [
-                'success' => true,
-                'message' => 'Koneksi ke Gemini API berhasil',
-                'response' => $response
+        $contents = [];
+
+        if (!empty($context)) {
+            // Tidak ada role "system" di Gemini; kita masukkan ke user turn pertama
+            $contents[] = [
+                'role'  => 'user',
+                'parts' => [[
+                    'text' => "SYSTEM CONTEXT:\n{$context}\n\nIkuti konteks ini pada semua jawaban."
+                ]]
             ];
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'message' => 'Koneksi ke Gemini API gagal: ' . $e->getMessage()
+            // (opsional) balasan model pseudo-ack; tidak wajib
+            $contents[] = [
+                'role'  => 'model',
+                'parts' => [[
+                    'text' => 'Dipahami.'
+                ]]
             ];
         }
-    }
 
-    public function generateRubric($subject, $assignmentType, $criteria = [])
-    {
-        $prompt = "Buatkan rubrik penilaian untuk tugas {$assignmentType} mata pelajaran {$subject}.";
-        
-        if (!empty($criteria)) {
-            $prompt .= " Kriteria yang harus dinilai: " . implode(', ', $criteria) . ".";
+        foreach ($history as $item) {
+            // Harus sudah dalam format: ['role'=>'user'|'model','parts'=>[['text'=>...]]]
+            if (isset($item['role'], $item['parts'])) {
+                $contents[] = $item;
+            }
         }
-        
-        $prompt .= " Format rubrik dengan 4 level: Sangat Baik (90-100), Baik (80-89), Cukup (70-79), Kurang (0-69). Berikan deskripsi untuk setiap level dan kriteria.";
-        
-        $context = "Anda adalah asisten AI untuk guru. Buatkan rubrik penilaian yang komprehensif dan mudah dipahami.";
-        
-        return $this->sendMessage($prompt, $context);
+
+        $contents[] = [
+            'role'  => 'user',
+            'parts' => [['text' => $message]]
+        ];
+
+        return $contents;
     }
 
-    public function summarizeContent($content, $maxLength = 200)
+    /**
+     * Gabungkan config bawaan (env) dengan override.
+     */
+    private function mergeGenerationConfig(array $override): array
     {
-        $prompt = "Ringkas konten berikut dalam maksimal {$maxLength} kata:\n\n{$content}";
-        $context = "Anda adalah asisten AI yang membantu meringkas materi pembelajaran. Buat ringkasan yang informatif dan mudah dipahami.";
-        
-        return $this->sendMessage($prompt, $context);
+        $base = [
+            'temperature'     => $this->temperature,
+            'maxOutputTokens' => $this->maxTokens,
+            'topP'            => $this->topP,
+            'topK'            => $this->topK,
+        ];
+
+        // Filter null agar tidak override dengan null
+        $override = array_filter($override, fn ($v) => $v !== null);
+
+        return array_merge($base, $override);
     }
 
-    public function generateAnnouncement($topic, $target, $tone = 'formal')
+    /**
+     * Safety settings default (boleh kamu sesuaikan bila perlu).
+     */
+    private function defaultSafetySettings(): array
     {
-        $prompt = "Buatkan pengumuman tentang '{$topic}' untuk {$target} dengan nada {$tone}. Pengumuman harus jelas, informatif, dan sesuai dengan konteks sekolah.";
-        $context = "Anda adalah asisten AI untuk membuat pengumuman sekolah. Gunakan bahasa Indonesia yang baik dan benar.";
-        
-        return $this->sendMessage($prompt, $context);
+        return [
+            [
+                'category'  => 'HARM_CATEGORY_HARASSMENT',
+                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE',
+            ],
+            [
+                'category'  => 'HARM_CATEGORY_HATE_SPEECH',
+                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE',
+            ],
+            [
+                'category'  => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE',
+            ],
+            [
+                'category'  => 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                'threshold' => 'BLOCK_MEDIUM_AND_ABOVE',
+            ],
+        ];
     }
 
-    private function getFallbackResponse()
+    /**
+     * Ambil text pertama dari response (kalau ada).
+     */
+    private function extractText(array $resp): ?string
+    {
+        foreach (($resp['candidates'] ?? []) as $cand) {
+            $parts = data_get($cand, 'content.parts', []);
+            foreach ($parts as $p) {
+                if (isset($p['text'])) {
+                    return $p['text'];
+                }
+            }
+        }
+        return null;
+    }
+
+    private function getFallbackResponse(): string
     {
         $fallbackResponses = [
             'Maaf, saya sedang mengalami gangguan. Silakan coba lagi dalam beberapa saat.',
             'Sistem chatbot sedang dalam pemeliharaan. Mohon hubungi admin untuk bantuan lebih lanjut.',
             'Terjadi kesalahan teknis. Silakan refresh halaman dan coba lagi.',
         ];
-        
+
         return $fallbackResponses[array_rand($fallbackResponses)];
     }
 
-    public function updateConfig($config)
+    /** =================== UTIL (opsional) =================== */
+
+    public function testConnection(): array
     {
-        if (isset($config['max_tokens'])) {
-            $this->maxTokens = $config['max_tokens'];
-            ChatConfig::setValue('gemini.max_tokens', $config['max_tokens']);
+        try {
+            $resp = $this->generate(
+                contents: [[
+                    'role'  => 'user',
+                    'parts' => [[ 'text' => 'Halo! Balas dengan: "Koneksi berhasil".' ]]
+                ]]
+            );
+
+            return [
+                'success'  => true,
+                'response' => $this->extractText($resp),
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error'   => $e->getMessage(),
+            ];
         }
-        
-        if (isset($config['temperature'])) {
-            $this->temperature = $config['temperature'];
-            ChatConfig::setValue('gemini.temperature', $config['temperature']);
-        }
-        
-        return true;
     }
 
-    public function getConfig()
+    public function getConfig(): array
     {
         return [
-            'model' => $this->model,
-            'max_tokens' => $this->maxTokens,
+            'model'       => $this->model,
+            'max_tokens'  => $this->maxTokens,
             'temperature' => $this->temperature,
-            'api_key_configured' => !empty($this->apiKey)
+            'top_p'       => $this->topP,
+            'top_k'       => $this->topK,
+            'base_url'    => $this->baseUrl,
+            'api_key_set' => !empty($this->apiKey),
         ];
     }
 }
