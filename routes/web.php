@@ -4,7 +4,8 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [LandingController::class, 'index'])->name('home');
+// Route::get('/', [LandingController::class, 'index'])->name('home');
+Route::redirect('/', '/login');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard utama: pilih role otomatis → redirect ke /dashboard/{role}
